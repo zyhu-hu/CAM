@@ -82,6 +82,7 @@ public :: &
    dyn_init,     &
    dyn_run,      &
    dyn_final,    &
+   dyn_free_interface, & ! added as standalone sub module, sweid
    dyn_import_t, &
    dyn_export_t, &
    dyn_state,    &
@@ -104,6 +105,19 @@ type dyn_import_t
      real(r8), dimension(:,:,:),   pointer :: pkz    ! Pressure to the kappa offset
      real(r8), dimension(:,:,:),   pointer :: delp   ! Delta pressure
      real(r8), dimension(:,:,:,:), pointer :: tracer ! Tracers
+
+   ! added - sweidman
+     real(r8), dimension(:,: ),    pointer :: old_phis   ! Surface geopotential
+     real(r8), dimension(:,: ),    pointer :: old_ps     ! Surface pressure
+     real(r8), dimension(:,:,:),   pointer :: old_u3s    ! U-winds (staggered)
+     real(r8), dimension(:,:,:),   pointer :: old_v3s    ! V-winds (staggered)
+     real(r8), dimension(:,:,:),   pointer :: old_pe     ! Pressure
+     real(r8), dimension(:,:,:),   pointer :: old_pt     ! Potential temperature
+     real(r8), dimension(:,:,:),   pointer :: old_t3     ! Temperatures
+     real(r8), dimension(:,:,:),   pointer :: old_pk     ! Pressure to the kappa
+     real(r8), dimension(:,:,:),   pointer :: old_pkz    ! Pressure to the kappa offset
+     real(r8), dimension(:,:,:),   pointer :: old_delp   ! Delta pressure
+     real(r8), dimension(:,:,:,:), pointer :: old_tracer ! Tracers
 end type dyn_import_t
 
 type dyn_export_t
@@ -127,6 +141,28 @@ type dyn_export_t
      real(r8), dimension(:,:,:),   pointer :: dua3s  ! U-wind tend. from advection (stagg)
      real(r8), dimension(:,:,:),   pointer :: dva3s  ! V-wind tend. from advection (stagg)
      real(r8), dimension(:,:,:),   pointer :: duf3s  ! U-wind tend. from fixer (staggered)
+
+     ! added - sweidman
+     real(r8), dimension(:,: ),    pointer :: old_phis   ! Surface geopotential
+     real(r8), dimension(:,: ),    pointer :: old_ps     ! Surface pressure
+     real(r8), dimension(:,:,:),   pointer :: old_u3s    ! U-winds (staggered)
+     real(r8), dimension(:,:,:),   pointer :: old_v3s    ! V-winds (staggered)
+     real(r8), dimension(:,:,:),   pointer :: old_pe     ! Pressure
+     real(r8), dimension(:,:,:),   pointer :: old_pt     ! Potential temperature
+     real(r8), dimension(:,:,:),   pointer :: old_t3     ! Temperatures
+     real(r8), dimension(:,:,:),   pointer :: old_pk     ! Pressure to the kappa
+     real(r8), dimension(:,:,:),   pointer :: old_pkz    ! Pressure to the kappa offset
+     real(r8), dimension(:,:,:),   pointer :: old_delp   ! Delta pressure
+     real(r8), dimension(:,:,:,:), pointer :: old_tracer ! Tracers
+     real(r8), dimension(:,:,:),   pointer :: old_peln   !
+     real(r8), dimension(:,:,:),   pointer :: old_omga   ! Vertical velocity
+     real(r8), dimension(:,:,:),   pointer :: old_mfx    ! Mass flux in X
+     real(r8), dimension(:,:,:),   pointer :: old_mfy    ! Mass flux in Y
+     real(r8), dimension(:,:,:),   pointer :: old_du3s   ! U-wind tend. from dycore (staggered)
+     real(r8), dimension(:,:,:),   pointer :: old_dv3s   ! V-wind tend. from dycore (staggered)
+     real(r8), dimension(:,:,:),   pointer :: old_dua3s  ! U-wind tend. from advection (stagg)
+     real(r8), dimension(:,:,:),   pointer :: old_dva3s  ! V-wind tend. from advection (stagg)
+     real(r8), dimension(:,:,:),   pointer :: old_duf3s  ! U-wind tend. from fixer (staggered)
 end type dyn_export_t
 
 ! The FV core is always called in its "full physics" mode.  We don't want
@@ -463,6 +499,7 @@ subroutine dyn_init(dyn_in, dyn_out)
    use constituents,    only: pcnst, cnst_name, cnst_longname, tottnam, cnst_get_ind
    use cam_history,     only: addfld, add_default, horiz_only
    use phys_control,    only: phys_getopts
+   use dynamics_vars,   only: dynamics_clean ! added - sweidman
 
 #if ( defined OFFLINE_DYN )
    use metdata,         only: metdata_dyn_init
@@ -485,6 +522,8 @@ subroutine dyn_init(dyn_in, dyn_out)
    integer :: jfirstxy, jlastxy
    integer :: km
    integer :: ierr
+
+   logical, save :: is_first=.TRUE.  ! added - sweidman
 
    integer :: m, ixcldice, ixcldliq
    logical :: history_budget      ! output tendencies and state variables for budgets
@@ -535,6 +574,17 @@ subroutine dyn_init(dyn_in, dyn_out)
             dyn_in%pkz(   ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
             dyn_in%delp(  ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
             dyn_in%tracer(ifirstxy:ilastxy,jfirstxy:jlastxy,km, grid%ntotq ), &
+            dyn_in%old_phis(  ifirstxy:ilastxy,jfirstxy:jlastxy),          &  ! added old vars - sweidman
+            dyn_in%old_ps(    ifirstxy:ilastxy,jfirstxy:jlastxy),          &
+            dyn_in%old_u3s(   ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
+            dyn_in%old_v3s(   ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
+            dyn_in%old_pe(    ifirstxy:ilastxy,km+1,jfirstxy:jlastxy),     &
+            dyn_in%old_pt(    ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
+            dyn_in%old_t3(    ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
+            dyn_in%old_pk(    ifirstxy:ilastxy,jfirstxy:jlastxy,km+1),     &
+            dyn_in%old_pkz(   ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
+            dyn_in%old_delp(  ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &
+            dyn_in%old_tracer(ifirstxy:ilastxy,jfirstxy:jlastxy,km, grid%ntotq ), &
             stat=ierr)
 
    if ( ierr /= 0 ) then
@@ -554,6 +604,18 @@ subroutine dyn_init(dyn_in, dyn_out)
    dyn_in%delp   = inf
    dyn_in%tracer = inf
 
+   dyn_in%old_phis   = 0._r8 ! added - sweidman
+   dyn_in%old_ps     = 0._r8
+   dyn_in%old_u3s    = 0._r8
+   dyn_in%old_v3s    = 0._r8
+   dyn_in%old_pe     = 0._r8
+   dyn_in%old_pt     = 0._r8
+   dyn_in%old_t3     = 0._r8
+   dyn_in%old_pk     = 0._r8
+   dyn_in%old_pkz    = 0._r8
+   dyn_in%old_delp   = 0._r8
+   dyn_in%old_tracer = 0._r8
+
    ! Export object has all of these except phis
    dyn_out%phis   => dyn_in%phis
    dyn_out%ps     => dyn_in%ps
@@ -567,11 +629,27 @@ subroutine dyn_init(dyn_in, dyn_out)
    dyn_out%delp   => dyn_in%delp
    dyn_out%tracer => dyn_in%tracer
 
+   dyn_out%old_phis   => dyn_in%old_phis ! added - sweidman
+   dyn_out%old_ps     => dyn_in%old_ps
+   dyn_out%old_u3s    => dyn_in%old_u3s
+   dyn_out%old_v3s    => dyn_in%old_v3s
+   dyn_out%old_pe     => dyn_in%old_pe
+   dyn_out%old_pt     => dyn_in%old_pt
+   dyn_out%old_t3     => dyn_in%old_t3
+   dyn_out%old_pk     => dyn_in%old_pk
+   dyn_out%old_pkz    => dyn_in%old_pkz
+   dyn_out%old_delp   => dyn_in%old_delp
+   dyn_out%old_tracer => dyn_in%old_tracer
+
    ! And several more which are not in the import container
    allocate(dyn_out%peln (ifirstxy:ilastxy,km+1,jfirstxy:jlastxy),&
             dyn_out%omga (ifirstxy:ilastxy,km,jfirstxy:jlastxy),  &
             dyn_out%mfx  (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
             dyn_out%mfy  (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
+            dyn_out%old_peln (ifirstxy:ilastxy,km+1,jfirstxy:jlastxy),& ! added - sweidman
+            dyn_out%old_omga (ifirstxy:ilastxy,km,jfirstxy:jlastxy),  &
+            dyn_out%old_mfx  (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
+            dyn_out%old_mfy  (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
             stat=ierr)
    if ( ierr /= 0 ) then
       write(iulog,*) sub//': ERROR: allocating components of dyn_out.  ierr=', ierr
@@ -582,12 +660,14 @@ subroutine dyn_init(dyn_in, dyn_out)
 
       allocate( &
          dyn_out%duf3s(ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
+         dyn_out%old_duf3s(ifirstxy:ilastxy,jfirstxy:jlastxy,km),  & ! added - sweidman
          stat=ierr)
       if ( ierr /= 0 ) then
          write(iulog,*) sub//': ERROR: allocating duf3s components of dyn_out.  ierr=', ierr
          call endrun(sub//': ERROR: allocating duf3s components of dyn_out')
       end if
       dyn_out%duf3s= inf
+      dyn_out%old_duf3s= 0._r8 ! added - sweidman
    end if
 
    if (dyn_state%am_diag) then
@@ -596,6 +676,10 @@ subroutine dyn_init(dyn_in, dyn_out)
          dyn_out%dv3s (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
          dyn_out%dua3s(ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
          dyn_out%dva3s(ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
+         dyn_out%old_du3s (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  & ! added - sweidman
+         dyn_out%old_dv3s (ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
+         dyn_out%old_dua3s(ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
+         dyn_out%old_dva3s(ifirstxy:ilastxy,jfirstxy:jlastxy,km),  &
          stat=ierr)
       if ( ierr /= 0 ) then
          write(iulog,*) sub//': ERROR: allocating du3s components of dyn_out.  ierr=', ierr
@@ -605,19 +689,29 @@ subroutine dyn_init(dyn_in, dyn_out)
       dyn_out%dv3s = inf
       dyn_out%dua3s= inf
       dyn_out%dva3s= inf
+      dyn_out%old_du3s = 0._r8 ! added - sweidman
+      dyn_out%old_dv3s = 0._r8
+      dyn_out%old_dua3s= 0._r8
+      dyn_out%old_dva3s= 0._r8
    end if
 
    dyn_out%peln = inf
    dyn_out%omga = inf
    dyn_out%mfx  = inf
    dyn_out%mfy  = inf
+   dyn_out%old_peln = 0._r8 ! added - sweidman
+   dyn_out%old_omga = 0._r8 
+   dyn_out%old_mfx  = 0._r8 
+   dyn_out%old_mfy  = 0._r8 
 
 #if ( defined OFFLINE_DYN )
    call metdata_dyn_init(grid)
 #endif
 
+if ( is_first ) then ! added - sweidman
    ! Setup circulation diagnostics
    call ctem_init()
+end if
 
    ! Diagnostics for AM
    if (dyn_state%am_diag) call fv_diag_init()
@@ -631,6 +725,8 @@ subroutine dyn_init(dyn_in, dyn_out)
    end if
 
    ! History output
+
+if ( is_first ) then  ! added - sweidman
 
    call addfld('US',    (/ 'lev' /),'A','m/s','Zonal wind, staggered', gridname='fv_u_stagger')
    call addfld('VS',    (/ 'lev' /),'A','m/s','Meridional wind, staggered', gridname='fv_v_stagger')
@@ -679,6 +775,9 @@ subroutine dyn_init(dyn_in, dyn_out)
       call add_default(tottnam(ixcldice), budget_hfile_num, ' ')
       call add_default('TTEND   '       , budget_hfile_num, ' ')
    end if
+
+   is_first=.FALSE. ! added - sweidman
+end if
 
 end subroutine dyn_init
 
@@ -2773,11 +2872,13 @@ subroutine dyn_final(restart_file, dyn_state, dyn_in, dyn_out)
    call dynamics_clean    ( dyn_state%grid  )
    call dyn_free_interface( dyn_in, dyn_out )
 
-   !=============================================================================================
-   contains
-   !=============================================================================================
+end subroutine dyn_final
 
-   subroutine dyn_free_interface ( dyn_in, dyn_out )
+!   !=============================================================================================
+!   contains
+!   !=============================================================================================
+
+subroutine dyn_free_interface ( dyn_in, dyn_out ) ! added as a standalone module - sweid
 
       ! free the dynamics import and export
 
@@ -2814,9 +2915,35 @@ subroutine dyn_final(restart_file, dyn_state, dyn_in, dyn_out)
       if ( associated(dyn_out%mfx) )  deallocate( dyn_out%mfx )
       if ( associated(dyn_out%mfy) )  deallocate( dyn_out%mfy )
 
-   end subroutine dyn_free_interface
+      if ( associated(dyn_in%old_phis) ) deallocate( dyn_in%old_phis ) ! added - sweidman
+      if ( associated(dyn_in%old_ps) )   deallocate( dyn_in%old_ps )
+      if ( associated(dyn_in%old_u3s) )  deallocate( dyn_in%old_u3s )
+      if ( associated(dyn_in%old_v3s) )  deallocate( dyn_in%old_v3s )
+      if ( associated(dyn_in%old_pe) )   deallocate( dyn_in%old_pe )
+      if ( associated(dyn_in%old_pt) )   deallocate( dyn_in%old_pt )
+      if ( associated(dyn_in%old_t3) )   deallocate( dyn_in%old_t3 )
+      if ( associated(dyn_in%old_pk) )   deallocate( dyn_in%old_pk )
+      if ( associated(dyn_in%old_pkz) )  deallocate( dyn_in%old_pkz )
+      if ( associated(dyn_in%old_delp) ) deallocate( dyn_in%old_delp )
+      if ( associated(dyn_in%old_tracer) ) deallocate( dyn_in%old_tracer)
 
-end subroutine dyn_final
+      if ( associated(dyn_out%old_ps) )   nullify( dyn_out%old_ps )
+      if ( associated(dyn_out%old_u3s) )  nullify( dyn_out%old_u3s )
+      if ( associated(dyn_out%old_v3s) )  nullify( dyn_out%old_v3s )
+      if ( associated(dyn_out%old_pe) )   nullify( dyn_out%old_pe )
+      if ( associated(dyn_out%old_pt) )   nullify( dyn_out%old_pt )
+      if ( associated(dyn_out%old_t3) )   nullify( dyn_out%old_t3 )
+      if ( associated(dyn_out%old_pk) )   nullify( dyn_out%old_pk )
+      if ( associated(dyn_out%old_pkz) )  nullify( dyn_out%old_pkz )
+      if ( associated(dyn_out%old_delp) ) nullify( dyn_out%old_delp )
+      if ( associated(dyn_out%old_tracer) ) nullify( dyn_out%old_tracer )
+
+      if ( associated(dyn_out%old_omga) ) deallocate( dyn_out%old_omga )
+      if ( associated(dyn_out%old_peln) ) deallocate( dyn_out%old_peln )
+      if ( associated(dyn_out%old_mfx) )  deallocate( dyn_out%old_mfx )
+      if ( associated(dyn_out%old_mfy) )  deallocate( dyn_out%old_mfy )
+
+end subroutine dyn_free_interface
 
 !=============================================================================================
 ! Private routines

@@ -81,6 +81,44 @@ module camsrfexch
      real(r8) :: dstdry4(pcols)      ! dry deposition of dust (bin4)
      real(r8), pointer, dimension(:) :: nhx_nitrogen_flx ! nitrogen deposition fluxes (kgN/m2/s)
      real(r8), pointer, dimension(:) :: noy_nitrogen_flx ! nitrogen deposition fluxes (kgN/m2/s)
+
+     real(r8) :: old_tbot(pcols)         ! bot level temperature
+     real(r8) :: old_zbot(pcols)         ! bot level height above surface
+     real(r8) :: old_topo(pcols)         ! surface topographic height (m)
+     real(r8) :: old_ubot(pcols)         ! bot level u wind
+     real(r8) :: old_vbot(pcols)         ! bot level v wind
+     real(r8) :: old_qbot(pcols,pcnst)   ! bot level specific humidity
+     real(r8) :: old_pbot(pcols)         ! bot level pressure
+     real(r8) :: old_rho(pcols)          ! bot level density	
+     real(r8) :: old_netsw(pcols)        !	
+     real(r8) :: old_flwds(pcols)        ! 
+     real(r8) :: old_precsc(pcols)       !
+     real(r8) :: old_precsl(pcols)       !
+     real(r8) :: old_precc(pcols)        ! 
+     real(r8) :: old_precl(pcols)        ! 
+     real(r8) :: old_soll(pcols)         ! 
+     real(r8) :: old_sols(pcols)         ! 
+     real(r8) :: old_solld(pcols)        !
+     real(r8) :: old_solsd(pcols)        !
+     real(r8) :: old_thbot(pcols)        ! 
+     real(r8) :: old_co2prog(pcols)      ! prognostic co2
+     real(r8) :: old_co2diag(pcols)      ! diagnostic co2
+     real(r8) :: old_psl(pcols)
+     real(r8) :: old_bcphiwet(pcols)     ! wet deposition of hydrophilic black carbon
+     real(r8) :: old_bcphidry(pcols)     ! dry deposition of hydrophilic black carbon
+     real(r8) :: old_bcphodry(pcols)     ! dry deposition of hydrophobic black carbon
+     real(r8) :: old_ocphiwet(pcols)     ! wet deposition of hydrophilic organic carbon
+     real(r8) :: old_ocphidry(pcols)     ! dry deposition of hydrophilic organic carbon
+     real(r8) :: old_ocphodry(pcols)     ! dry deposition of hydrophobic organic carbon
+     real(r8) :: old_dstwet1(pcols)      ! wet deposition of dust (bin1)
+     real(r8) :: old_dstdry1(pcols)      ! dry deposition of dust (bin1)
+     real(r8) :: old_dstwet2(pcols)      ! wet deposition of dust (bin2)
+     real(r8) :: old_dstdry2(pcols)      ! dry deposition of dust (bin2)
+     real(r8) :: old_dstwet3(pcols)      ! wet deposition of dust (bin3)
+     real(r8) :: old_dstdry3(pcols)      ! dry deposition of dust (bin3)
+     real(r8) :: old_dstwet4(pcols)      ! wet deposition of dust (bin4)
+     real(r8) :: old_dstdry4(pcols)      ! dry deposition of dust (bin4)
+
   end type cam_out_t 
 
 !---------------------------------------------------------------------------
@@ -124,6 +162,35 @@ module camsrfexch
      real(r8), pointer, dimension(:,:) :: meganflx ! MEGAN fluxes
      real(r8), pointer, dimension(:,:) :: fireflx ! wild fire emissions
      real(r8), pointer, dimension(:)   :: fireztop ! wild fire emissions vert distribution top
+
+     real(r8) :: old_asdir(pcols)            ! albedo: shortwave, direct
+     real(r8) :: old_asdif(pcols)            ! albedo: shortwave, diffuse
+     real(r8) :: old_aldir(pcols)            ! albedo: longwave, direct
+     real(r8) :: old_aldif(pcols)            ! albedo: longwave, diffuse
+     real(r8) :: old_lwup(pcols)             ! longwave up radiative flux
+     real(r8) :: old_lhf(pcols)              ! latent heat flux
+     real(r8) :: old_shf(pcols)              ! sensible heat flux
+     real(r8) :: old_wsx(pcols)              ! surface u-stress (N)
+     real(r8) :: old_wsy(pcols)              ! surface v-stress (N)
+     real(r8) :: old_tref(pcols)             ! ref height surface air temp
+     real(r8) :: old_qref(pcols)             ! ref height specific humidity 
+     real(r8) :: old_u10(pcols)              ! 10m wind speed
+     real(r8) :: old_ts(pcols)               ! merged surface temp 
+     real(r8) :: old_sst(pcols)              ! sea surface temp
+     real(r8) :: old_snowhland(pcols)        ! snow depth (liquid water equivalent) over land 
+     real(r8) :: old_snowhice(pcols)         ! snow depth over ice
+     real(r8) :: old_fco2_lnd(pcols)         ! co2 flux from lnd
+     real(r8) :: old_fco2_ocn(pcols)         ! co2 flux from ocn
+     real(r8) :: old_fdms(pcols)             ! dms flux
+     real(r8) :: old_landfrac(pcols)         ! land area fraction
+     real(r8) :: old_icefrac(pcols)          ! sea-ice areal fraction
+     real(r8) :: old_ocnfrac(pcols)          ! ocean areal fraction
+     real(r8) :: old_cflx(pcols,pcnst)       ! constituent flux (emissions)
+     real(r8) :: old_ustar(pcols)            ! atm/ocn saved version of ustar
+     real(r8) :: old_re(pcols)               ! atm/ocn saved version of re
+     real(r8) :: old_ssq(pcols)              ! atm/ocn saved version of ssq
+
+
   end type cam_in_t    
 
 !===============================================================================

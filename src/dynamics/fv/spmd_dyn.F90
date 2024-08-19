@@ -661,6 +661,32 @@ subroutine spmdinit_dyn(jord, grid)
 
    ! Compute Y partition for YZ decomposition
 
+   ! avoid double allocation - sweidman
+   if ( allocated(nlat_p)) then
+      deallocate(nlat_p)
+   end if
+   
+   if ( allocated(cut)) then
+      deallocate(cut)
+   end if
+
+   if ( allocated(lonrangexy)) then
+      deallocate(lonrangexy)
+   end if
+
+   if ( allocated(latrangexy)) then
+      deallocate(latrangexy)
+   end if
+
+   if ( allocated(xdistxy)) then
+      deallocate(xdistxy)
+   end if
+  
+   if ( allocated(ydistxy)) then
+      deallocate(ydistxy)
+   end if
+   ! end added
+
    allocate(ydist  (npr_y))
    allocate(nlat_p (0:npes-1))
    allocate(cut    (2,0:npes-1))

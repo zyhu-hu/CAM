@@ -429,6 +429,8 @@ subroutine stepon_run3(dtime, cam_out, phys_state,             &
    integer :: yr, mon, day      ! year, month, day components of a date
    integer :: ncsecp
    integer :: freq_diag
+   
+   logical, save :: do_restart=.FALSE. ! added - sweidman
 
    !----------------------------------------------------------
    ! Monitor max/min/mean of selected fields
@@ -447,8 +449,9 @@ subroutine stepon_run3(dtime, cam_out, phys_state,             &
    state => get_dyn_state()
    freq_diag = state%check_dt
 
+
+   grid => state%grid ! swapped outside if loop - sweidman
    if (fv_monitor .and. mod(ncsecp, freq_diag) == 0) then
-      grid => state%grid
 
       call t_barrierf('sync_fv_out', mpicom)
       call t_startf('fv_out')
@@ -458,6 +461,72 @@ subroutine stepon_run3(dtime, cam_out, phys_state,             &
                    phys_state, ncdate, ncsecp, moist_physics)
       call t_stopf('fv_out')
    endif
+
+   if (mod(ncsec,21600)==0 .and. .not. do_restart) then ! added all below - sweidman
+
+
+      dyn_in%old_phis      =dyn_in%phis   
+      dyn_in%old_ps        =dyn_in%ps    
+      dyn_in%old_u3s       =dyn_in%u3s   
+      dyn_in%old_v3s       =dyn_in%v3s   
+      !dyn_in%old_pe        =dyn_in%pe    
+      dyn_in%old_pt        =dyn_in%pt    
+      !dyn_in%old_t3        =dyn_in%t3    
+      !dyn_in%old_pk        =dyn_in%pk    
+      !dyn_in%old_pkz       =dyn_in%pkz   
+      dyn_in%old_delp      =dyn_in%delp  
+      dyn_in%old_tracer    =dyn_in%tracer
+     
+      !dyn_out%old_phis      =dyn_out%phis
+      !dyn_out%old_ps        =dyn_out%ps
+      !dyn_out%old_u3s       =dyn_out%u3s
+      !dyn_out%old_v3s       =dyn_out%v3s
+      !dyn_out%old_pe        =dyn_out%pe
+      !dyn_out%old_pt        =dyn_out%pt
+      !dyn_out%old_t3        =dyn_out%t3
+      !dyn_out%old_pk        =dyn_out%pk
+      !dyn_out%old_pkz       =dyn_out%pkz
+      !dyn_out%old_delp      =dyn_out%delp
+      !dyn_out%old_tracer    =dyn_out%tracer
+      !dyn_out%old_peln      =dyn_out%peln
+      !dyn_out%old_omga      =dyn_out%omga
+      !dyn_out%old_mfx       =dyn_out%mfx
+      !dyn_out%old_mfy       =dyn_out%mfy
+
+do_restart=.TRUE.
+end if
+if ( mod(ncsec,21600)==10800 .AND. do_restart ) then
+do_restart=.FALSE.
+
+      dyn_in%phis      =dyn_in%old_phis   
+      dyn_in%ps        =dyn_in%old_ps    
+      dyn_in%u3s       =dyn_in%old_u3s   
+      dyn_in%v3s       =dyn_in%old_v3s   
+      !dyn_in%pe        =dyn_in%old_pe    
+      dyn_in%pt        =dyn_in%old_pt    
+      !dyn_in%t3        =dyn_in%old_t3    
+      !dyn_in%pk        =dyn_in%old_pk    
+      !dyn_in%pkz       =dyn_in%old_pkz   
+      dyn_in%delp      =dyn_in%old_delp  
+      dyn_in%tracer    =dyn_in%old_tracer
+     
+      !dyn_out%phis      =dyn_out%old_phis
+      !dyn_out%ps        =dyn_out%old_ps
+      !dyn_out%u3s       =dyn_out%old_u3s
+      !dyn_out%v3s       =dyn_out%old_v3s
+      !dyn_out%pe        =dyn_out%old_pe
+      !dyn_out%pt        =dyn_out%old_pt
+      !dyn_out%t3        =dyn_out%old_t3
+      !dyn_out%pk        =dyn_out%old_pk
+      !dyn_out%pkz       =dyn_out%old_pkz
+      !dyn_out%delp      =dyn_out%old_delp
+      !dyn_out%tracer    =dyn_out%old_tracer
+      !dyn_out%peln      =dyn_out%old_peln
+      !dyn_out%omga      =dyn_out%old_omga
+      !dyn_out%mfx       =dyn_out%old_mfx
+      !dyn_out%mfy       =dyn_out%old_mfy
+
+end if
 
 !EOC
 end subroutine stepon_run3

@@ -269,6 +269,19 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
    s3d = s2d*dims3d(3)
    allocate(tmp(s3d))
 
+   !if this is being called and it's not the first time, we need to make sure all
+   !the pointers are reset - sweidman
+
+   do i=1, restartvarcnt
+      if (restartvars(i)%ndims==3) then
+         nullify(restartvars(i)%v3d)
+      endif
+      if (restartvars(i)%ndims==2) then
+         nullify(restartvars(i)%v2d)
+      endif
+   enddo
+   ! end added
+
    call init_restart_varlistr(dyn_in)
 
    ldof => get_restart_decomp(plon, plat, plev)
@@ -287,7 +300,7 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
          call pio_read_darray(File, vdesc, iodesc2d, tmp(1:s2d), ierr)
          restartvars(i)%v2d(:,:) = reshape(tmp(1:s2d), dims3d(1:2))
       else if(ndims==3) then
-         call pio_read_darray(File, restartvars(i)%vdesc, iodesc3d, tmp(1:s3d), ierr)
+         call pio_read_darray(File, vdesc, iodesc3d, tmp(1:s3d), ierr) ! sweidman
          restartvars(i)%v3d(:,:,:) = reshape(tmp(1:s3d), dims3d)
       end if
    end do
@@ -398,12 +411,13 @@ subroutine init_restart_varlistr(dyn_in)
 
    type(dyn_import_t) :: dyn_in
 
-   integer :: vcnt=1
+   integer :: vcnt
    integer :: i, m
    !----------------------------------------------------------------------------
 
+   vcnt=1 ! sweidman
    ! Should only be called once
-   if (restart_varlistr_initialized) return
+   !if (restart_varlistr_initialized) return ! sweidman
 
    restart_varlistr_initialized = .true.
 
