@@ -396,7 +396,6 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
    character(len=50) :: filein  ! added
    character(len=50) :: fname_pbuf_cam    ! added
    character(len=50) :: rfilename_spec_cam = '%c.cam.r.%y-%m-%d-%s.nc' ! added
-   logical, save :: is_first=.TRUE. ! added
    integer  :: nmodes ! added
 
    ! define cam.r. buffer fields
@@ -759,18 +758,471 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
       call t_stopf  ('cam_write_restart')
    end if
 
-   !when it's time to do restart, find the right file name and read it, zeroing out
-   !some more tendencies - sweidman
+   !when it's time to do restart, reset buffer variables - sweidman
+
+   if ( mod(sec_spec,21600)==0  .AND. .NOT. do_restart ) then 
+      do_restart=.TRUE.
+
+      if(masterproc) then
+         print *, 'swap pbuf old to new ', sec_spec
+      end if
+      
+      do lchnk=begchunk,endchunk 
+         pbuf=> pbuf_get_chunk(pbuf2d,lchnk)
+     
+         ! do the same as above, get buffer values
+         TEOUT_idx        = pbuf_get_index('TEOUT')!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
+         DTCORE_idx       = pbuf_get_index('DTCORE')!(pbuf_00032, lat, lon) ;
+         CLDO_idx         = pbuf_get_index('CLDO')!(pbuf_00032, lat, lon) ;
+         PRER_EVAP_idx    = pbuf_get_index('PRER_EVAP')!(pbuf_00032, lat, lon) ;
+         CC_T_idx         = pbuf_get_index('CC_T')!(pbuf_00032, lat, lon) ;
+         CC_qv_idx        = pbuf_get_index('CC_qv')!(pbuf_00032, lat, lon) ;
+         CC_ql_idx        = pbuf_get_index('CC_ql')!(pbuf_00032, lat, lon) ;
+         CC_qi_idx        = pbuf_get_index('CC_qi')!(pbuf_00032, lat, lon) ;
+         CC_nl_idx        = pbuf_get_index('CC_nl')!(pbuf_00032, lat, lon) ;
+         CC_ni_idx        = pbuf_get_index('CC_ni')!(pbuf_00032, lat, lon) ;
+         CC_qlst_idx      = pbuf_get_index('CC_qlst')!(pbuf_00032, lat, lon) ;
+         am_evp_st_idx    = pbuf_get_index('am_evp_st')!(pbuf_00032, lat, lon) ;
+         evprain_st_idx   = pbuf_get_index('evprain_st')!(pbuf_00032, lat, lon) ;
+         evpsnow_st_idx   = pbuf_get_index('evpsnow_st')!(pbuf_00032, lat, lon)
+         ACPRECL_idx      = pbuf_get_index('ACPRECL')!(lat, lon) ;
+         ACGCME_idx       = pbuf_get_index('ACGCME')!(lat, lon) ;
+         ACNUM_idx        = pbuf_get_index('ACNUM')!(lat, lon) ;
+         RELVAR_idx       = pbuf_get_index('RELVAR')!(pbuf_00032, lat, lon) ;
+         ACCRE_ENHAN_idx  = pbuf_get_index('ACCRE_ENHAN')!(pbuf_00032, lat, lon) ;
+         pblh_idx         = pbuf_get_index('pblh')!(lat, lon) ;
+         tke_idx          = pbuf_get_index('tke')!(pbuf_00033, lat, lon) ;
+         kvh_idx          = pbuf_get_index('kvh')!(pbuf_00033, lat, lon) ;
+         tpert_idx        = pbuf_get_index('tpert')!(lat, lon) ;
+         AST_idx          = pbuf_get_index('AST')!(pbuf_00032, lat, lon) ;
+         AIST_idx         = pbuf_get_index('AIST')!(pbuf_00032, lat, lon) ;
+         ALST_idx         = pbuf_get_index('ALST')!(pbuf_00032, lat, lon) ;
+         QIST_idx         = pbuf_get_index('QIST')!(pbuf_00032, lat, lon) ;
+         QLST_idx         = pbuf_get_index('QLST')!(pbuf_00032, lat, lon) ;
+         CONCLD_idx       = pbuf_get_index('CONCLD')!(pbuf_00032, lat, lon) ;
+         CLD_idx          = pbuf_get_index('CLD')!(pbuf_00032, lat, lon) ;
+         RAD_CLUBB_idx    = pbuf_get_index('RAD_CLUBB')!(pbuf_00032, lat, lon) ;
+         WP2_nadv_idx     = pbuf_get_index('WP2_nadv')!(pbuf_00033, lat, lon) ;
+         WP3_nadv_idx     = pbuf_get_index('WP3_nadv')!(pbuf_00033, lat, lon) ;
+         WPTHLP_nadv_idx  = pbuf_get_index('WPTHLP_nadv')!(pbuf_00033, lat, lon) ;
+         WPRTP_nadv_idx   = pbuf_get_index('WPRTP_nadv')!(pbuf_00033, lat, lon) ;
+         RTPTHLP_nadv_idx = pbuf_get_index('RTPTHLP_nadv')!(pbuf_00033, lat, lon) ;
+         RTP2_nadv_idx    = pbuf_get_index('RTP2_nadv')!(pbuf_00033, lat, lon) ;
+         THLP2_nadv_idx   = pbuf_get_index('THLP2_nadv')!(pbuf_00033, lat, lon) ;
+         UP2_nadv_idx     = pbuf_get_index('UP2_nadv')!(pbuf_00033, lat, lon) ;
+         VP2_nadv_idx     = pbuf_get_index('VP2_nadv')!(pbuf_00033, lat, lon) ;
+         UPWP_idx         = pbuf_get_index('UPWP')!(pbuf_00033, lat, lon) ;
+         VPWP_idx         = pbuf_get_index('VPWP')!(pbuf_00033, lat, lon) ;
+         THLM_idx         = pbuf_get_index('THLM')!(pbuf_00033, lat, lon) ;
+         RTM_idx          = pbuf_get_index('RTM')!(pbuf_00033, lat, lon) ;
+         UM_idx           = pbuf_get_index('UM')!(pbuf_00033, lat, lon) ;
+         VM_idx           = pbuf_get_index('VM')!(pbuf_00033, lat, lon) ;
+         DGNUM_idx        = pbuf_get_index('DGNUM')!(pbuf_00128, lat, lon) ;
+         DGNUMWET_idx     = pbuf_get_index('DGNUMWET')!(pbuf_00128, lat, lon) ;
+         num_c1_idx       = pbuf_get_index('num_c1')!(pbuf_00032, lat, lon) ;
+         so4_c1_idx       = pbuf_get_index('so4_c1')!(pbuf_00032, lat, lon) ;
+         pom_c1_idx       = pbuf_get_index('pom_c1')!(pbuf_00032, lat, lon) ;
+         soa_c1_idx       = pbuf_get_index('soa_c1')!(pbuf_00032, lat, lon) ;
+         bc_c1_idx        = pbuf_get_index('bc_c1')!(pbuf_00032, lat, lon) ;
+         dst_c1_idx       = pbuf_get_index('dst_c1')!(pbuf_00032, lat, lon) ;
+         ncl_c1_idx       = pbuf_get_index('ncl_c1')!(pbuf_00032, lat, lon) ;
+         num_c2_idx       = pbuf_get_index('num_c2')!(pbuf_00032, lat, lon) ;
+         so4_c2_idx       = pbuf_get_index('so4_c2')!(pbuf_00032, lat, lon) ;
+         soa_c2_idx       = pbuf_get_index('soa_c2')!(pbuf_00032, lat, lon) ;
+         ncl_c2_idx       = pbuf_get_index('ncl_c2')!(pbuf_00032, lat, lon) ;
+         dst_c2_idx       = pbuf_get_index('dst_c2')!(pbuf_00032, lat, lon) ;
+         num_c3_idx       = pbuf_get_index('num_c3')!(pbuf_00032, lat, lon) ;
+         dst_c3_idx       = pbuf_get_index('dst_c3')!(pbuf_00032, lat, lon) ;
+         ncl_c3_idx       = pbuf_get_index('ncl_c3')!(pbuf_00032, lat, lon) ;
+         so4_c3_idx       = pbuf_get_index('so4_c3')!(pbuf_00032, lat, lon) ;
+         num_c4_idx       = pbuf_get_index('num_c4')!(pbuf_00032, lat, lon) ;
+         pom_c4_idx       = pbuf_get_index('pom_c4')!(pbuf_00032, lat, lon) ;
+         bc_c4_idx        = pbuf_get_index('bc_c4')!(pbuf_00032, lat, lon) ;
+         DP_FLXPRC_idx    = pbuf_get_index('DP_FLXPRC')!(pbuf_00033, lat, lon) ;
+         DP_FLXSNW_idx    = pbuf_get_index('DP_FLXSNW')!(pbuf_00033, lat, lon) ;
+         DP_CLDLIQ_idx    = pbuf_get_index('DP_CLDLIQ')!(pbuf_00032, lat, lon) ;
+         DP_CLDICE_idx    = pbuf_get_index('DP_CLDICE')!(pbuf_00032, lat, lon) ;
+         cush_idx         = pbuf_get_index('cush')!(lat, lon) ;
+         QRS_idx          = pbuf_get_index('QRS')!(pbuf_00032, lat, lon) ;
+         QRL_idx          = pbuf_get_index('QRL')!(pbuf_00032, lat, lon) ;
+         ICIWP_idx        = pbuf_get_index('ICIWP')!(pbuf_00032, lat, lon) ;
+         ICLWP_idx        = pbuf_get_index('ICLWP')!(pbuf_00032, lat, lon) ;
+         kvm_idx          = pbuf_get_index('kvm')!(pbuf_00033, lat, lon) ;
+         turbtype_idx     = pbuf_get_index('turbtype')!(pbuf_00033, lat, lon) ;
+         smaw_idx         = pbuf_get_index('smaw')!(pbuf_00033, lat, lon) ;
+         tauresx_idx      = pbuf_get_index('tauresx')!(lat, lon) ;
+         tauresy_idx      = pbuf_get_index('tauresy')!(lat, lon) ;
+         qpert_idx        = pbuf_get_index('qpert')!(pbuf_00033, lat, lon) ;
+         T_TTEND_idx      = pbuf_get_index('T_TTEND')!(pbuf_00032, lat, lon) ;
+
+         TEOUT_oldid        = pbuf_get_index('TEOUT_OLD')!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
+         DTCORE_oldid       = pbuf_get_index('DTCORE_OLD')!(pbuf_00032, lat, lon) ;
+         CLDO_oldid         = pbuf_get_index('CLDO_OLD')!(pbuf_00032, lat, lon) ;
+         PRER_EVAP_oldid    = pbuf_get_index('PRER_EVAP_OLD')!(pbuf_00032, lat, lon) ;
+         CC_T_oldid         = pbuf_get_index('CC_T_OLD')!(pbuf_00032, lat, lon) ;
+         CC_qv_oldid        = pbuf_get_index('CC_qv_OLD')!(pbuf_00032, lat, lon) ;
+         CC_ql_oldid        = pbuf_get_index('CC_ql_OLD')!(pbuf_00032, lat, lon) ;
+         CC_qi_oldid        = pbuf_get_index('CC_qi_OLD')!(pbuf_00032, lat, lon) ;
+         CC_nl_oldid        = pbuf_get_index('CC_nl_OLD')!(pbuf_00032, lat, lon) ;
+         CC_ni_oldid        = pbuf_get_index('CC_ni_OLD')!(pbuf_00032, lat, lon) ;
+         CC_qlst_oldid      = pbuf_get_index('CC_qlst_OLD')!(pbuf_00032, lat, lon) ;
+         am_evp_st_oldid    = pbuf_get_index('am_evp_st_OLD')!(pbuf_00032, lat, lon) ;
+         evprain_st_oldid   = pbuf_get_index('evprain_st_OLD')!(pbuf_00032, lat, lon) ;
+         evpsnow_st_oldid   = pbuf_get_index('evpsnow_st_OLD')!(pbuf_00032, lat, lon)
+         ACPRECL_oldid      = pbuf_get_index('ACPRECL_OLD')!(lat, lon) ;
+         ACGCME_oldid       = pbuf_get_index('ACGCME_OLD')!(lat, lon) ;
+         ACNUM_oldid        = pbuf_get_index('ACNUM_OLD')!(lat, lon) ;
+         RELVAR_oldid       = pbuf_get_index('RELVAR_OLD')!(pbuf_00032, lat, lon) ;
+         ACCRE_ENHAN_oldid  = pbuf_get_index('ACCRE_ENHAN_OLD')!(pbuf_00032, lat, lon) ;
+         pblh_oldid         = pbuf_get_index('pblh_OLD')!(lat, lon) ;
+         tke_oldid          = pbuf_get_index('tke_OLD')!(pbuf_00033, lat, lon) ;
+         kvh_oldid          = pbuf_get_index('kvh_OLD')!(pbuf_00033, lat, lon) ;
+         tpert_oldid        = pbuf_get_index('tpert_OLD')!(lat, lon) ;
+         AST_oldid          = pbuf_get_index('AST_OLD')!(pbuf_00032, lat, lon) ;
+         AIST_oldid         = pbuf_get_index('AIST_OLD')!(pbuf_00032, lat, lon) ;
+         ALST_oldid         = pbuf_get_index('ALST_OLD')!(pbuf_00032, lat, lon) ;
+         QIST_oldid         = pbuf_get_index('QIST_OLD')!(pbuf_00032, lat, lon) ;
+         QLST_oldid         = pbuf_get_index('QLST_OLD')!(pbuf_00032, lat, lon) ;
+         CONCLD_oldid       = pbuf_get_index('CONCLD_OLD')!(pbuf_00032, lat, lon) ;
+         CLD_oldid          = pbuf_get_index('CLD_OLD')!(pbuf_00032, lat, lon) ;
+         RAD_CLUBB_oldid    = pbuf_get_index('RAD_CLUBB_OLD')!(pbuf_00032, lat, lon) ;
+         WP2_nadv_oldid     = pbuf_get_index('WP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         WP3_nadv_oldid     = pbuf_get_index('WP3_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         WPTHLP_nadv_oldid  = pbuf_get_index('WPTHLP_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         WPRTP_nadv_oldid   = pbuf_get_index('WPRTP_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         RTPTHLP_nadv_oldid = pbuf_get_index('RTPTHLP_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         RTP2_nadv_oldid    = pbuf_get_index('RTP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         THLP2_nadv_oldid   = pbuf_get_index('THLP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         UP2_nadv_oldid     = pbuf_get_index('UP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         VP2_nadv_oldid     = pbuf_get_index('VP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
+         UPWP_oldid         = pbuf_get_index('UPWP_OLD')!(pbuf_00033, lat, lon) ;
+         VPWP_oldid         = pbuf_get_index('VPWP_OLD')!(pbuf_00033, lat, lon) ;
+         THLM_oldid         = pbuf_get_index('THLM_OLD')!(pbuf_00033, lat, lon) ;
+         RTM_oldid          = pbuf_get_index('RTM_OLD')!(pbuf_00033, lat, lon) ;
+         UM_oldid           = pbuf_get_index('UM_OLD')!(pbuf_00033, lat, lon) ;
+         VM_oldid           = pbuf_get_index('VM_OLD')!(pbuf_00033, lat, lon) ;
+         DGNUM_oldid        = pbuf_get_index('DGNUM_OLD')!(pbuf_00128, lat, lon) ;
+         DGNUMWET_oldid     = pbuf_get_index('DGNUMWET_OLD')!(pbuf_00128, lat, lon) ;
+         num_c1_oldid       = pbuf_get_index('num_c1_OLD')!(pbuf_00032, lat, lon) ;
+         so4_c1_oldid       = pbuf_get_index('so4_c1_OLD')!(pbuf_00032, lat, lon) ;
+         pom_c1_oldid       = pbuf_get_index('pom_c1_OLD')!(pbuf_00032, lat, lon) ;
+         soa_c1_oldid       = pbuf_get_index('soa_c1_OLD')!(pbuf_00032, lat, lon) ;
+         bc_c1_oldid        = pbuf_get_index('bc_c1_OLD')!(pbuf_00032, lat, lon) ;
+         dst_c1_oldid       = pbuf_get_index('dst_c1_OLD')!(pbuf_00032, lat, lon) ;
+         ncl_c1_oldid       = pbuf_get_index('ncl_c1_OLD')!(pbuf_00032, lat, lon) ;
+         num_c2_oldid       = pbuf_get_index('num_c2_OLD')!(pbuf_00032, lat, lon) ;
+         so4_c2_oldid       = pbuf_get_index('so4_c2_OLD')!(pbuf_00032, lat, lon) ;
+         soa_c2_oldid       = pbuf_get_index('soa_c2_OLD')!(pbuf_00032, lat, lon) ;
+         ncl_c2_oldid       = pbuf_get_index('ncl_c2_OLD')!(pbuf_00032, lat, lon) ;
+         dst_c2_oldid       = pbuf_get_index('dst_c2_OLD')!(pbuf_00032, lat, lon) ;
+         num_c3_oldid       = pbuf_get_index('num_c3_OLD')!(pbuf_00032, lat, lon) ;
+         dst_c3_oldid       = pbuf_get_index('dst_c3_OLD')!(pbuf_00032, lat, lon) ;
+         ncl_c3_oldid       = pbuf_get_index('ncl_c3_OLD')!(pbuf_00032, lat, lon) ;
+         so4_c3_oldid       = pbuf_get_index('so4_c3_OLD')!(pbuf_00032, lat, lon) ;
+         num_c4_oldid       = pbuf_get_index('num_c4_OLD')!(pbuf_00032, lat, lon) ;
+         pom_c4_oldid       = pbuf_get_index('pom_c4_OLD')!(pbuf_00032, lat, lon) ;
+         bc_c4_oldid        = pbuf_get_index('bc_c4_OLD')!(pbuf_00032, lat, lon) ;
+         DP_FLXPRC_oldid    = pbuf_get_index('DP_FLXPRC_OLD')!(pbuf_00033, lat, lon) ;
+         DP_FLXSNW_oldid    = pbuf_get_index('DP_FLXSNW_OLD')!(pbuf_00033, lat, lon) ;
+         DP_CLDLIQ_oldid    = pbuf_get_index('DP_CLDLIQ_OLD')!(pbuf_00032, lat, lon) ;
+         DP_CLDICE_oldid    = pbuf_get_index('DP_CLDICE_OLD')!(pbuf_00032, lat, lon) ;
+         cush_oldid         = pbuf_get_index('cush_OLD')!(lat, lon) ;
+         QRS_oldid          = pbuf_get_index('QRS_OLD')!(pbuf_00032, lat, lon) ;
+         QRL_oldid          = pbuf_get_index('QRL_OLD')!(pbuf_00032, lat, lon) ;
+         ICIWP_oldid        = pbuf_get_index('ICIWP_OLD')!(pbuf_00032, lat, lon) ;
+         ICLWP_oldid        = pbuf_get_index('ICLWP_OLD')!(pbuf_00032, lat, lon) ;
+         kvm_oldid          = pbuf_get_index('kvm_OLD')!(pbuf_00033, lat, lon) ;
+         turbtype_oldid     = pbuf_get_index('turbtype_OLD')!(pbuf_00033, lat, lon) ;
+         smaw_oldid         = pbuf_get_index('smaw_OLD')!(pbuf_00033, lat, lon) ;
+         tauresx_oldid      = pbuf_get_index('tauresx_OLD')!(lat, lon) ;
+         tauresy_oldid      = pbuf_get_index('tauresy_OLD')!(lat, lon) ;
+         qpert_oldid        = pbuf_get_index('qpert_OLD')!(pbuf_00033, lat, lon) ;
+         T_TTEND_oldid      = pbuf_get_index('T_TTEND_OLD')!(pbuf_00032, lat, lon) ;
+
+         ! call buffer
+         call pbuf_get_field(pbuf,TEOUT_idx        ,TEOUT)!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
+         call pbuf_get_field(pbuf,DTCORE_idx       ,DTCORE)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CLDO_idx         ,CLDO)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,PRER_EVAP_idx    ,PRER_EVAP)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_T_idx         ,CC_T)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_qv_idx        ,CC_qv)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_ql_idx        ,CC_ql)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_qi_idx        ,CC_qi)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_nl_idx        ,CC_nl)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_ni_idx        ,CC_ni)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_qlst_idx      ,CC_qlst)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,am_evp_st_idx    ,am_evp_st)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,evprain_st_idx   ,evprain_st)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,evpsnow_st_idx   ,evpsnow_st)!(pbuf_00032, lat, lon)
+         call pbuf_get_field(pbuf,ACPRECL_idx      ,ACPRECL)!(lat, lon) ;
+         call pbuf_get_field(pbuf,ACGCME_idx       ,ACGCME)!(lat, lon) ;
+         call pbuf_get_field(pbuf,ACNUM_idx        ,ACNUM)!(lat, lon) ;
+         call pbuf_get_field(pbuf,RELVAR_idx       ,RELVAR)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ACCRE_ENHAN_idx  ,ACCRE_ENHAN)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,pblh_idx         ,pblh)!(lat, lon) ;
+         call pbuf_get_field(pbuf,tke_idx          ,tke)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,kvh_idx          ,kvh)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,tpert_idx        ,tpert)!(lat, lon) ;
+         call pbuf_get_field(pbuf,AST_idx          ,AST)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,AIST_idx         ,AIST)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ALST_idx         ,ALST)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,QIST_idx         ,QIST)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,QLST_idx         ,QLST)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CONCLD_idx       ,CONCLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CLD_idx          ,CLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,RAD_CLUBB_idx    ,RAD_CLUBB)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,WP2_nadv_idx     ,WP2_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,WP3_nadv_idx     ,WP3_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,WPTHLP_nadv_idx  ,WPTHLP_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,WPRTP_nadv_idx   ,WPRTP_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,RTPTHLP_nadv_idx ,RTPTHLP_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,RTP2_nadv_idx    ,RTP2_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,THLP2_nadv_idx   ,THLP2_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,UP2_nadv_idx     ,UP2_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,VP2_nadv_idx     ,VP2_nadv)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,UPWP_idx         ,UPWP)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,VPWP_idx         ,VPWP)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,THLM_idx         ,THLM)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,RTM_idx          ,RTM)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,UM_idx           ,UM)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,VM_idx           ,VM)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,DGNUM_idx        ,DGNUM)!(pbuf_00128, lat, lon) ;
+         call pbuf_get_field(pbuf,DGNUMWET_idx     ,DGNUMWET)!(pbuf_00128, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c1_idx       ,num_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,so4_c1_idx       ,so4_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,pom_c1_idx       ,pom_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,soa_c1_idx       ,soa_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,bc_c1_idx        ,bc_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,dst_c1_idx       ,dst_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ncl_c1_idx       ,ncl_c1)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c2_idx       ,num_c2)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,so4_c2_idx       ,so4_c2)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,soa_c2_idx       ,soa_c2)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ncl_c2_idx       ,ncl_c2)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,dst_c2_idx       ,dst_c2)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c3_idx       ,num_c3)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,dst_c3_idx       ,dst_c3)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ncl_c3_idx       ,ncl_c3)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,so4_c3_idx       ,so4_c3)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c4_idx       ,num_c4)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,pom_c4_idx       ,pom_c4)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,bc_c4_idx        ,bc_c4)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_FLXPRC_idx    ,DP_FLXPRC)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_FLXSNW_idx    ,DP_FLXSNW)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_CLDLIQ_idx    ,DP_CLDLIQ)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_CLDICE_idx    ,DP_CLDICE)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,cush_idx         ,cush)!(lat, lon) ;
+         call pbuf_get_field(pbuf,QRS_idx          ,QRS)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,QRL_idx          ,QRL)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ICIWP_idx        ,ICIWP)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ICLWP_idx        ,ICLWP)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,kvm_idx          ,kvm)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,turbtype_idx     ,turbtype)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,smaw_idx         ,smaw)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,tauresx_idx      ,tauresx)!(lat, lon) ;
+         call pbuf_get_field(pbuf,tauresy_idx      ,tauresy)!(lat, lon) ;
+         call pbuf_get_field(pbuf,qpert_idx        ,qpert)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,T_TTEND_idx      ,T_TTEND)!(pbuf_00032, lat, lon) ;
+
+         call pbuf_get_field(pbuf,TEOUT_oldid        ,TEOUT_OLD)!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
+         call pbuf_get_field(pbuf,DTCORE_oldid       ,DTCORE_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CLDO_oldid         ,CLDO_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,PRER_EVAP_oldid    ,PRER_EVAP_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_T_oldid         ,CC_T_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_qv_oldid        ,CC_qv_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_ql_oldid        ,CC_ql_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_qi_oldid        ,CC_qi_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_nl_oldid        ,CC_nl_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_ni_oldid        ,CC_ni_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CC_qlst_oldid      ,CC_qlst_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,am_evp_st_oldid    ,am_evp_st_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,evprain_st_oldid   ,evprain_st_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,evpsnow_st_oldid   ,evpsnow_st_OLD)!(pbuf_00032, lat, lon)
+         call pbuf_get_field(pbuf,ACPRECL_oldid      ,ACPRECL_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,ACGCME_oldid       ,ACGCME_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,ACNUM_oldid        ,ACNUM_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,RELVAR_oldid       ,RELVAR_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ACCRE_ENHAN_oldid  ,ACCRE_ENHAN_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,pblh_oldid         ,pblh_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,tke_oldid          ,tke_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,kvh_oldid          ,kvh_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,tpert_oldid        ,tpert_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,AST_oldid          ,AST_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,AIST_oldid         ,AIST_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ALST_oldid         ,ALST_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,QIST_oldid         ,QIST_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,QLST_oldid         ,QLST_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CONCLD_oldid       ,CONCLD_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,CLD_oldid          ,CLD_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,RAD_CLUBB_oldid    ,RAD_CLUBB_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,WP2_nadv_oldid     ,WP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,WP3_nadv_oldid     ,WP3_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,WPTHLP_nadv_oldid  ,WPTHLP_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,WPRTP_nadv_oldid   ,WPRTP_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,RTPTHLP_nadv_oldid ,RTPTHLP_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,RTP2_nadv_oldid    ,RTP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,THLP2_nadv_oldid   ,THLP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,UP2_nadv_oldid     ,UP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,VP2_nadv_oldid     ,VP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,UPWP_oldid         ,UPWP_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,VPWP_oldid         ,VPWP_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,THLM_oldid         ,THLM_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,RTM_oldid          ,RTM_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,UM_oldid           ,UM_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,VM_oldid           ,VM_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,DGNUM_oldid        ,DGNUM_OLD)!(pbuf_00128, lat, lon) ;
+         call pbuf_get_field(pbuf,DGNUMWET_oldid     ,DGNUMWET_OLD)!(pbuf_00128, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c1_oldid       ,num_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,so4_c1_oldid       ,so4_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,pom_c1_oldid       ,pom_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,soa_c1_oldid       ,soa_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,bc_c1_oldid        ,bc_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,dst_c1_oldid       ,dst_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ncl_c1_oldid       ,ncl_c1_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c2_oldid       ,num_c2_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,so4_c2_oldid       ,so4_c2_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,soa_c2_oldid       ,soa_c2_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ncl_c2_oldid       ,ncl_c2_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,dst_c2_oldid       ,dst_c2_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c3_oldid       ,num_c3_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,dst_c3_oldid       ,dst_c3_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ncl_c3_oldid       ,ncl_c3_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,so4_c3_oldid       ,so4_c3_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,num_c4_oldid       ,num_c4_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,pom_c4_oldid       ,pom_c4_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,bc_c4_oldid        ,bc_c4_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_FLXPRC_oldid    ,DP_FLXPRC_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_FLXSNW_oldid    ,DP_FLXSNW_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_CLDLIQ_oldid    ,DP_CLDLIQ_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,DP_CLDICE_oldid    ,DP_CLDICE_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,cush_oldid         ,cush_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,QRS_oldid          ,QRS_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,QRL_oldid          ,QRL_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ICIWP_oldid        ,ICIWP_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,ICLWP_oldid        ,ICLWP_OLD)!(pbuf_00032, lat, lon) ;
+         call pbuf_get_field(pbuf,kvm_oldid          ,kvm_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,turbtype_oldid     ,turbtype_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,smaw_oldid         ,smaw_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,tauresx_oldid      ,tauresx_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,tauresy_oldid      ,tauresy_OLD)!(lat, lon) ;
+         call pbuf_get_field(pbuf,qpert_oldid        ,qpert_OLD)!(pbuf_00033, lat, lon) ;
+         call pbuf_get_field(pbuf,T_TTEND_oldid      ,T_TTEND_OLD)!(pbuf_00032, lat, lon) ;
+
+         ! swap old to current
+      ncol = get_ncols_p(lchnk)
+      call rad_cnst_get_info(0, nmodes=nmodes)
+      do i = 1, ncol 
+      do k = 1, pver ! 2d
+
+         do m = 1, nmodes ! 3d
+            DGNUM_old(i,k,m) = DGNUM(i,k,m) 
+            DGNUMWET_old(i,k,m) = DGNUMWET(i,k,m)   
+         end do ! nmodes
+         
+         DTCORE_old(i,k) = DTCORE(i,k)
+         CLDO_old(i,k) = CLDO(i,k)
+         PRER_EVAP_old(i,k) = PRER_EVAP(i,k)
+         CC_T_old(i,k) = CC_T(i,k)
+         CC_qv_old(i,k) = CC_qv(i,k)
+         CC_ql_old(i,k) = CC_ql(i,k)
+         CC_qi_old(i,k) = CC_qi(i,k)
+         CC_nl_old(i,k) = CC_nl(i,k)
+         CC_ni_old(i,k) = CC_ni(i,k)
+         CC_qlst_old(i,k) = CC_qlst(i,k)
+         am_evp_st_old(i,k) = am_evp_st(i,k)
+         evprain_st_old(i,k) = evprain_st(i,k)
+         evpsnow_st_old(i,k) = evpsnow_st(i,k)
+         RELVAR_old(i,k) = RELVAR(i,k)
+         ACCRE_ENHAN_old(i,k) = ACCRE_ENHAN(i,k)
+         AST_old(i,k) = AST(i,k)
+         AIST_old(i,k) = AIST(i,k)
+         ALST_old(i,k) = ALST(i,k)
+         QIST_old(i,k) = QIST(i,k)
+         QLST_old(i,k) = QLST(i,k)
+         CONCLD_old(i,k) = CONCLD(i,k)
+         CLD_old(i,k) = CLD(i,k)
+         RAD_CLUBB_old(i,k) = RAD_CLUBB(i,k)
+         num_c1_old(i,k) = num_c1(i,k)
+         so4_c1_old(i,k) = so4_c1(i,k)
+         pom_c1_old(i,k) = pom_c1(i,k)
+         soa_c1_old(i,k) = soa_c1(i,k)
+         bc_c1_old(i,k) = bc_c1(i,k)
+         dst_c1_old(i,k) = dst_c1(i,k)
+         ncl_c1_old(i,k) = ncl_c1(i,k)
+         num_c2_old(i,k) = num_c2(i,k)
+         so4_c2_old(i,k) = so4_c2(i,k)
+         soa_c2_old(i,k) = soa_c2(i,k)
+         ncl_c2_old(i,k) = ncl_c2(i,k)
+         dst_c2_old(i,k) = dst_c2(i,k)
+         num_c3_old(i,k) = num_c3(i,k)
+         dst_c3_old(i,k) = dst_c3(i,k)
+         ncl_c3_old(i,k) = ncl_c3(i,k)
+         so4_c3_old(i,k) = so4_c3(i,k)
+         num_c4_old(i,k) = num_c4(i,k)
+         pom_c4_old(i,k) = pom_c4(i,k)
+         bc_c4_old(i,k) = bc_c4(i,k)
+         DP_CLDLIQ_old(i,k) = DP_CLDLIQ(i,k)
+         DP_CLDICE_old(i,k) = DP_CLDICE(i,k)
+         QRS_old(i,k) = QRS(i,k)
+         QRL_old(i,k) = QRL(i,k)
+         ICIWP_old(i,k) = ICIWP(i,k)
+         ICLWP_old(i,k) = ICLWP(i,k)
+         T_TTEND_old(i,k) = T_TTEND(i,k)
+      end do ! k=1,pver
+
+      do k = 1, pverp ! 2d
+         tke_old(i,k) = tke(i,k)
+         kvh_old(i,k) = kvh(i,k)
+         WP2_nadv_old(i,k) = WP2_nadv(i,k)
+         WP3_nadv_old(i,k) = WP3_nadv(i,k)
+         WPTHLP_nadv_old(i,k) = WPTHLP_nadv(i,k)
+         WPRTP_nadv_old(i,k) = WPRTP_nadv(i,k)
+         RTPTHLP_nadv_old(i,k) = RTPTHLP_nadv(i,k)
+         RTP2_nadv_old(i,k) = RTP2_nadv(i,k)
+         THLP2_nadv_old(i,k) = THLP2_nadv(i,k)
+         UP2_nadv_old(i,k) = UP2_nadv(i,k)
+         VP2_nadv_old(i,k) = VP2_nadv(i,k)
+         UPWP_old(i,k) = UPWP(i,k)
+         VPWP_old(i,k) = VPWP(i,k)
+         THLM_old(i,k) = THLM(i,k)
+         RTM_old(i,k) = RTM(i,k)
+         UM_old(i,k) = UM(i,k)
+         VM_old(i,k) = VM(i,k)
+         DP_FLXPRC_old(i,k) = DP_FLXPRC(i,k)
+         DP_FLXSNW_old(i,k) = DP_FLXSNW(i,k)
+         kvm_old(i,k) = kvm(i,k)
+         turbtype_old(i,k) = turbtype(i,k)
+         smaw_old(i,k) = smaw(i,k)
+         qpert_old(i,k) = qpert(i,k)
+      end do ! k=1,pverp
+      
+      TEOUT_old(i) = TEOUT(i)
+      ACPRECL_old(i) = ACPRECL(i)
+      ACGCME_old(i) = ACGCME(i)
+      ACNUM_old(i) = ACNUM(i)
+      pblh_old(i) = pblh(i)
+      tpert_old(i) = tpert(i)
+      cush_old(i) = cush(i)
+      tauresx_old(i) = tauresx(i)
+      tauresy_old(i) = tauresy(i)
+      end do ! i=1,ncol
+      end do ! lchunk
+
+   end if ! mod(sec_spec,21600)==0  .AND. .NOT. do_restart 
 
    if ( mod(sec_spec,21600)==10800 .AND. do_restart ) then
 
       do_restart=.FALSE.
 
-      filein = "atm_in"
-      fname_pbuf_cam = interpret_filename_spec( rfilename_spec_cam, yr_spec=yr_spec, mon_spec=mon_spec, day_spec=day_spec, sec_spec=sec_spec-10800 )
-      locfn= './' // trim(fname_pbuf_cam)
+      !filein = "atm_in"
+      !fname_pbuf_cam = interpret_filename_spec( rfilename_spec_cam, yr_spec=yr_spec, mon_spec=mon_spec, day_spec=day_spec, sec_spec=sec_spec-10800 )
+      !locfn= './' // trim(fname_pbuf_cam)
       do lchnk=begchunk,endchunk
       pbuf=> pbuf_get_chunk(pbuf2d,lchnk)
+
+      if(masterproc) then
+         print *, 'swap pbuf new to old ', sec_spec
+      end if
 
       ! get index of buffer vars
       TEOUT_idx        = pbuf_get_index('TEOUT')!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
@@ -1135,8 +1587,6 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
          evpsnow_st(i,k) = evpsnow_st_old(i,k)
          RELVAR(i,k) = RELVAR_old(i,k)
          ACCRE_ENHAN(i,k) = ACCRE_ENHAN_old(i,k)
-         tke(i,k) = tke_old(i,k)
-         kvh(i,k) = kvh_old(i,k)
          AST(i,k) = AST_old(i,k)
          AIST(i,k) = AIST_old(i,k)
          ALST(i,k) = ALST_old(i,k)
@@ -1145,21 +1595,6 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
          CONCLD(i,k) = CONCLD_old(i,k)
          CLD(i,k) = CLD_old(i,k)
          RAD_CLUBB(i,k) = RAD_CLUBB_old(i,k)
-         WP2_nadv(i,k) = WP2_nadv_old(i,k)
-         WP3_nadv(i,k) = WP3_nadv_old(i,k)
-         WPTHLP_nadv(i,k) = WPTHLP_nadv_old(i,k)
-         WPRTP_nadv(i,k) = WPRTP_nadv_old(i,k)
-         RTPTHLP_nadv(i,k) = RTPTHLP_nadv_old(i,k)
-         RTP2_nadv(i,k) = RTP2_nadv_old(i,k)
-         THLP2_nadv(i,k) = THLP2_nadv_old(i,k)
-         UP2_nadv(i,k) = UP2_nadv_old(i,k)
-         VP2_nadv(i,k) = VP2_nadv_old(i,k)
-         UPWP(i,k) = UPWP_old(i,k)
-         VPWP(i,k) = VPWP_old(i,k)
-         THLM(i,k) = THLM_old(i,k)
-         RTM(i,k) = RTM_old(i,k)
-         UM(i,k) = UM_old(i,k)
-         VM(i,k) = VM_old(i,k)
          num_c1(i,k) = num_c1_old(i,k)
          so4_c1(i,k) = so4_c1_old(i,k)
          pom_c1(i,k) = pom_c1_old(i,k)
@@ -1179,21 +1614,42 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
          num_c4(i,k) = num_c4_old(i,k)
          pom_c4(i,k) = pom_c4_old(i,k)
          bc_c4(i,k) = bc_c4_old(i,k)
-         DP_FLXPRC(i,k) = DP_FLXPRC_old(i,k)
-         DP_FLXSNW(i,k) = DP_FLXSNW_old(i,k)
          DP_CLDLIQ(i,k) = DP_CLDLIQ_old(i,k)
          DP_CLDICE(i,k) = DP_CLDICE_old(i,k)
          QRS(i,k) = QRS_old(i,k)
          QRL(i,k) = QRL_old(i,k)
          ICIWP(i,k) = ICIWP_old(i,k)
          ICLWP(i,k) = ICLWP_old(i,k)
+         T_TTEND(i,k) = T_TTEND_old(i,k)
+
+      end do ! k=1,pver
+
+      do k = 1, pverp
+         tke(i,k) = tke_old(i,k)
+         kvh(i,k) = kvh_old(i,k)
+         WP2_nadv(i,k) = WP2_nadv_old(i,k)
+         WP3_nadv(i,k) = WP3_nadv_old(i,k)
+         WPTHLP_nadv(i,k) = WPTHLP_nadv_old(i,k)
+         WPRTP_nadv(i,k) = WPRTP_nadv_old(i,k)
+         RTPTHLP_nadv(i,k) = RTPTHLP_nadv_old(i,k)
+         RTP2_nadv(i,k) = RTP2_nadv_old(i,k)
+         THLP2_nadv(i,k) = THLP2_nadv_old(i,k)
+         UP2_nadv(i,k) = UP2_nadv_old(i,k)
+         VP2_nadv(i,k) = VP2_nadv_old(i,k)
+         UPWP(i,k) = UPWP_old(i,k)
+         VPWP(i,k) = VPWP_old(i,k)
+         THLM(i,k) = THLM_old(i,k)
+         RTM(i,k) = RTM_old(i,k)
+         UM(i,k) = UM_old(i,k)
+         VM(i,k) = VM_old(i,k)
+         DP_FLXPRC(i,k) = DP_FLXPRC_old(i,k)
+         DP_FLXSNW(i,k) = DP_FLXSNW_old(i,k)
          kvm(i,k) = kvm_old(i,k)
          turbtype(i,k) = turbtype_old(i,k)
          smaw(i,k) = smaw_old(i,k)
          qpert(i,k) = qpert_old(i,k)
-         T_TTEND(i,k) = T_TTEND_old(i,k)
+      end do ! k=1,pverp
 
-      end do ! k=1,pver
       TEOUT(i) = TEOUT_old(i)
       ACPRECL(i) = ACPRECL_old(i)
       ACGCME(i) = ACGCME_old(i)
@@ -1225,449 +1681,6 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
          end do
       end do
    end if !  mod(sec_spec,21600)==10800 .AND. do_restart
-
-   if ( mod(sec_spec,21600)==0  .AND. .NOT. do_restart ) then 
-      do_restart=.TRUE.
-      
-      do lchnk=begchunk,endchunk 
-         pbuf=> pbuf_get_chunk(pbuf2d,lchnk)
-     
-         ! do the same as above, get buffer values
-         TEOUT_idx        = pbuf_get_index('TEOUT')!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
-         DTCORE_idx       = pbuf_get_index('DTCORE')!(pbuf_00032, lat, lon) ;
-         CLDO_idx         = pbuf_get_index('CLDO')!(pbuf_00032, lat, lon) ;
-         PRER_EVAP_idx    = pbuf_get_index('PRER_EVAP')!(pbuf_00032, lat, lon) ;
-         CC_T_idx         = pbuf_get_index('CC_T')!(pbuf_00032, lat, lon) ;
-         CC_qv_idx        = pbuf_get_index('CC_qv')!(pbuf_00032, lat, lon) ;
-         CC_ql_idx        = pbuf_get_index('CC_ql')!(pbuf_00032, lat, lon) ;
-         CC_qi_idx        = pbuf_get_index('CC_qi')!(pbuf_00032, lat, lon) ;
-         CC_nl_idx        = pbuf_get_index('CC_nl')!(pbuf_00032, lat, lon) ;
-         CC_ni_idx        = pbuf_get_index('CC_ni')!(pbuf_00032, lat, lon) ;
-         CC_qlst_idx      = pbuf_get_index('CC_qlst')!(pbuf_00032, lat, lon) ;
-         am_evp_st_idx    = pbuf_get_index('am_evp_st')!(pbuf_00032, lat, lon) ;
-         evprain_st_idx   = pbuf_get_index('evprain_st')!(pbuf_00032, lat, lon) ;
-         evpsnow_st_idx   = pbuf_get_index('evpsnow_st')!(pbuf_00032, lat, lon)
-         ACPRECL_idx      = pbuf_get_index('ACPRECL')!(lat, lon) ;
-         ACGCME_idx       = pbuf_get_index('ACGCME')!(lat, lon) ;
-         ACNUM_idx        = pbuf_get_index('ACNUM')!(lat, lon) ;
-         RELVAR_idx       = pbuf_get_index('RELVAR')!(pbuf_00032, lat, lon) ;
-         ACCRE_ENHAN_idx  = pbuf_get_index('ACCRE_ENHAN')!(pbuf_00032, lat, lon) ;
-         pblh_idx         = pbuf_get_index('pblh')!(lat, lon) ;
-         tke_idx          = pbuf_get_index('tke')!(pbuf_00033, lat, lon) ;
-         kvh_idx          = pbuf_get_index('kvh')!(pbuf_00033, lat, lon) ;
-         tpert_idx        = pbuf_get_index('tpert')!(lat, lon) ;
-         AST_idx          = pbuf_get_index('AST')!(pbuf_00032, lat, lon) ;
-         AIST_idx         = pbuf_get_index('AIST')!(pbuf_00032, lat, lon) ;
-         ALST_idx         = pbuf_get_index('ALST')!(pbuf_00032, lat, lon) ;
-         QIST_idx         = pbuf_get_index('QIST')!(pbuf_00032, lat, lon) ;
-         QLST_idx         = pbuf_get_index('QLST')!(pbuf_00032, lat, lon) ;
-         CONCLD_idx       = pbuf_get_index('CONCLD')!(pbuf_00032, lat, lon) ;
-         CLD_idx          = pbuf_get_index('CLD')!(pbuf_00032, lat, lon) ;
-         RAD_CLUBB_idx    = pbuf_get_index('RAD_CLUBB')!(pbuf_00032, lat, lon) ;
-         WP2_nadv_idx     = pbuf_get_index('WP2_nadv')!(pbuf_00033, lat, lon) ;
-         WP3_nadv_idx     = pbuf_get_index('WP3_nadv')!(pbuf_00033, lat, lon) ;
-         WPTHLP_nadv_idx  = pbuf_get_index('WPTHLP_nadv')!(pbuf_00033, lat, lon) ;
-         WPRTP_nadv_idx   = pbuf_get_index('WPRTP_nadv')!(pbuf_00033, lat, lon) ;
-         RTPTHLP_nadv_idx = pbuf_get_index('RTPTHLP_nadv')!(pbuf_00033, lat, lon) ;
-         RTP2_nadv_idx    = pbuf_get_index('RTP2_nadv')!(pbuf_00033, lat, lon) ;
-         THLP2_nadv_idx   = pbuf_get_index('THLP2_nadv')!(pbuf_00033, lat, lon) ;
-         UP2_nadv_idx     = pbuf_get_index('UP2_nadv')!(pbuf_00033, lat, lon) ;
-         VP2_nadv_idx     = pbuf_get_index('VP2_nadv')!(pbuf_00033, lat, lon) ;
-         UPWP_idx         = pbuf_get_index('UPWP')!(pbuf_00033, lat, lon) ;
-         VPWP_idx         = pbuf_get_index('VPWP')!(pbuf_00033, lat, lon) ;
-         THLM_idx         = pbuf_get_index('THLM')!(pbuf_00033, lat, lon) ;
-         RTM_idx          = pbuf_get_index('RTM')!(pbuf_00033, lat, lon) ;
-         UM_idx           = pbuf_get_index('UM')!(pbuf_00033, lat, lon) ;
-         VM_idx           = pbuf_get_index('VM')!(pbuf_00033, lat, lon) ;
-         DGNUM_idx        = pbuf_get_index('DGNUM')!(pbuf_00128, lat, lon) ;
-         DGNUMWET_idx     = pbuf_get_index('DGNUMWET')!(pbuf_00128, lat, lon) ;
-         num_c1_idx       = pbuf_get_index('num_c1')!(pbuf_00032, lat, lon) ;
-         so4_c1_idx       = pbuf_get_index('so4_c1')!(pbuf_00032, lat, lon) ;
-         pom_c1_idx       = pbuf_get_index('pom_c1')!(pbuf_00032, lat, lon) ;
-         soa_c1_idx       = pbuf_get_index('soa_c1')!(pbuf_00032, lat, lon) ;
-         bc_c1_idx        = pbuf_get_index('bc_c1')!(pbuf_00032, lat, lon) ;
-         dst_c1_idx       = pbuf_get_index('dst_c1')!(pbuf_00032, lat, lon) ;
-         ncl_c1_idx       = pbuf_get_index('ncl_c1')!(pbuf_00032, lat, lon) ;
-         num_c2_idx       = pbuf_get_index('num_c2')!(pbuf_00032, lat, lon) ;
-         so4_c2_idx       = pbuf_get_index('so4_c2')!(pbuf_00032, lat, lon) ;
-         soa_c2_idx       = pbuf_get_index('soa_c2')!(pbuf_00032, lat, lon) ;
-         ncl_c2_idx       = pbuf_get_index('ncl_c2')!(pbuf_00032, lat, lon) ;
-         dst_c2_idx       = pbuf_get_index('dst_c2')!(pbuf_00032, lat, lon) ;
-         num_c3_idx       = pbuf_get_index('num_c3')!(pbuf_00032, lat, lon) ;
-         dst_c3_idx       = pbuf_get_index('dst_c3')!(pbuf_00032, lat, lon) ;
-         ncl_c3_idx       = pbuf_get_index('ncl_c3')!(pbuf_00032, lat, lon) ;
-         so4_c3_idx       = pbuf_get_index('so4_c3')!(pbuf_00032, lat, lon) ;
-         num_c4_idx       = pbuf_get_index('num_c4')!(pbuf_00032, lat, lon) ;
-         pom_c4_idx       = pbuf_get_index('pom_c4')!(pbuf_00032, lat, lon) ;
-         bc_c4_idx        = pbuf_get_index('bc_c4')!(pbuf_00032, lat, lon) ;
-         DP_FLXPRC_idx    = pbuf_get_index('DP_FLXPRC')!(pbuf_00033, lat, lon) ;
-         DP_FLXSNW_idx    = pbuf_get_index('DP_FLXSNW')!(pbuf_00033, lat, lon) ;
-         DP_CLDLIQ_idx    = pbuf_get_index('DP_CLDLIQ')!(pbuf_00032, lat, lon) ;
-         DP_CLDICE_idx    = pbuf_get_index('DP_CLDICE')!(pbuf_00032, lat, lon) ;
-         cush_idx         = pbuf_get_index('cush')!(lat, lon) ;
-         QRS_idx          = pbuf_get_index('QRS')!(pbuf_00032, lat, lon) ;
-         QRL_idx          = pbuf_get_index('QRL')!(pbuf_00032, lat, lon) ;
-         ICIWP_idx        = pbuf_get_index('ICIWP')!(pbuf_00032, lat, lon) ;
-         ICLWP_idx        = pbuf_get_index('ICLWP')!(pbuf_00032, lat, lon) ;
-         kvm_idx          = pbuf_get_index('kvm')!(pbuf_00033, lat, lon) ;
-         turbtype_idx     = pbuf_get_index('turbtype')!(pbuf_00033, lat, lon) ;
-         smaw_idx         = pbuf_get_index('smaw')!(pbuf_00033, lat, lon) ;
-         tauresx_idx      = pbuf_get_index('tauresx')!(lat, lon) ;
-         tauresy_idx      = pbuf_get_index('tauresy')!(lat, lon) ;
-         qpert_idx        = pbuf_get_index('qpert')!(pbuf_00033, lat, lon) ;
-         T_TTEND_idx      = pbuf_get_index('T_TTEND')!(pbuf_00032, lat, lon) ;
-
-         TEOUT_oldid        = pbuf_get_index('TEOUT_OLD')!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
-         DTCORE_oldid       = pbuf_get_index('DTCORE_OLD')!(pbuf_00032, lat, lon) ;
-         CLDO_oldid         = pbuf_get_index('CLDO_OLD')!(pbuf_00032, lat, lon) ;
-         PRER_EVAP_oldid    = pbuf_get_index('PRER_EVAP_OLD')!(pbuf_00032, lat, lon) ;
-         CC_T_oldid         = pbuf_get_index('CC_T_OLD')!(pbuf_00032, lat, lon) ;
-         CC_qv_oldid        = pbuf_get_index('CC_qv_OLD')!(pbuf_00032, lat, lon) ;
-         CC_ql_oldid        = pbuf_get_index('CC_ql_OLD')!(pbuf_00032, lat, lon) ;
-         CC_qi_oldid        = pbuf_get_index('CC_qi_OLD')!(pbuf_00032, lat, lon) ;
-         CC_nl_oldid        = pbuf_get_index('CC_nl_OLD')!(pbuf_00032, lat, lon) ;
-         CC_ni_oldid        = pbuf_get_index('CC_ni_OLD')!(pbuf_00032, lat, lon) ;
-         CC_qlst_oldid      = pbuf_get_index('CC_qlst_OLD')!(pbuf_00032, lat, lon) ;
-         am_evp_st_oldid    = pbuf_get_index('am_evp_st_OLD')!(pbuf_00032, lat, lon) ;
-         evprain_st_oldid   = pbuf_get_index('evprain_st_OLD')!(pbuf_00032, lat, lon) ;
-         evpsnow_st_oldid   = pbuf_get_index('evpsnow_st_OLD')!(pbuf_00032, lat, lon)
-         ACPRECL_oldid      = pbuf_get_index('ACPRECL_OLD')!(lat, lon) ;
-         ACGCME_oldid       = pbuf_get_index('ACGCME_OLD')!(lat, lon) ;
-         ACNUM_oldid        = pbuf_get_index('ACNUM_OLD')!(lat, lon) ;
-         RELVAR_oldid       = pbuf_get_index('RELVAR_OLD')!(pbuf_00032, lat, lon) ;
-         ACCRE_ENHAN_oldid  = pbuf_get_index('ACCRE_ENHAN_OLD')!(pbuf_00032, lat, lon) ;
-         pblh_oldid         = pbuf_get_index('pblh_OLD')!(lat, lon) ;
-         tke_oldid          = pbuf_get_index('tke_OLD')!(pbuf_00033, lat, lon) ;
-         kvh_oldid          = pbuf_get_index('kvh_OLD')!(pbuf_00033, lat, lon) ;
-         tpert_oldid        = pbuf_get_index('tpert_OLD')!(lat, lon) ;
-         AST_oldid          = pbuf_get_index('AST_OLD')!(pbuf_00032, lat, lon) ;
-         AIST_oldid         = pbuf_get_index('AIST_OLD')!(pbuf_00032, lat, lon) ;
-         ALST_oldid         = pbuf_get_index('ALST_OLD')!(pbuf_00032, lat, lon) ;
-         QIST_oldid         = pbuf_get_index('QIST_OLD')!(pbuf_00032, lat, lon) ;
-         QLST_oldid         = pbuf_get_index('QLST_OLD')!(pbuf_00032, lat, lon) ;
-         CONCLD_oldid       = pbuf_get_index('CONCLD_OLD')!(pbuf_00032, lat, lon) ;
-         CLD_oldid          = pbuf_get_index('CLD_OLD')!(pbuf_00032, lat, lon) ;
-         RAD_CLUBB_oldid    = pbuf_get_index('RAD_CLUBB_OLD')!(pbuf_00032, lat, lon) ;
-         WP2_nadv_oldid     = pbuf_get_index('WP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         WP3_nadv_oldid     = pbuf_get_index('WP3_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         WPTHLP_nadv_oldid  = pbuf_get_index('WPTHLP_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         WPRTP_nadv_oldid   = pbuf_get_index('WPRTP_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         RTPTHLP_nadv_oldid = pbuf_get_index('RTPTHLP_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         RTP2_nadv_oldid    = pbuf_get_index('RTP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         THLP2_nadv_oldid   = pbuf_get_index('THLP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         UP2_nadv_oldid     = pbuf_get_index('UP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         VP2_nadv_oldid     = pbuf_get_index('VP2_nadv_OLD')!(pbuf_00033, lat, lon) ;
-         UPWP_oldid         = pbuf_get_index('UPWP_OLD')!(pbuf_00033, lat, lon) ;
-         VPWP_oldid         = pbuf_get_index('VPWP_OLD')!(pbuf_00033, lat, lon) ;
-         THLM_oldid         = pbuf_get_index('THLM_OLD')!(pbuf_00033, lat, lon) ;
-         RTM_oldid          = pbuf_get_index('RTM_OLD')!(pbuf_00033, lat, lon) ;
-         UM_oldid           = pbuf_get_index('UM_OLD')!(pbuf_00033, lat, lon) ;
-         VM_oldid           = pbuf_get_index('VM_OLD')!(pbuf_00033, lat, lon) ;
-         DGNUM_oldid        = pbuf_get_index('DGNUM_OLD')!(pbuf_00128, lat, lon) ;
-         DGNUMWET_oldid     = pbuf_get_index('DGNUMWET_OLD')!(pbuf_00128, lat, lon) ;
-         num_c1_oldid       = pbuf_get_index('num_c1_OLD')!(pbuf_00032, lat, lon) ;
-         so4_c1_oldid       = pbuf_get_index('so4_c1_OLD')!(pbuf_00032, lat, lon) ;
-         pom_c1_oldid       = pbuf_get_index('pom_c1_OLD')!(pbuf_00032, lat, lon) ;
-         soa_c1_oldid       = pbuf_get_index('soa_c1_OLD')!(pbuf_00032, lat, lon) ;
-         bc_c1_oldid        = pbuf_get_index('bc_c1_OLD')!(pbuf_00032, lat, lon) ;
-         dst_c1_oldid       = pbuf_get_index('dst_c1_OLD')!(pbuf_00032, lat, lon) ;
-         ncl_c1_oldid       = pbuf_get_index('ncl_c1_OLD')!(pbuf_00032, lat, lon) ;
-         num_c2_oldid       = pbuf_get_index('num_c2_OLD')!(pbuf_00032, lat, lon) ;
-         so4_c2_oldid       = pbuf_get_index('so4_c2_OLD')!(pbuf_00032, lat, lon) ;
-         soa_c2_oldid       = pbuf_get_index('soa_c2_OLD')!(pbuf_00032, lat, lon) ;
-         ncl_c2_oldid       = pbuf_get_index('ncl_c2_OLD')!(pbuf_00032, lat, lon) ;
-         dst_c2_oldid       = pbuf_get_index('dst_c2_OLD')!(pbuf_00032, lat, lon) ;
-         num_c3_oldid       = pbuf_get_index('num_c3_OLD')!(pbuf_00032, lat, lon) ;
-         dst_c3_oldid       = pbuf_get_index('dst_c3_OLD')!(pbuf_00032, lat, lon) ;
-         ncl_c3_oldid       = pbuf_get_index('ncl_c3_OLD')!(pbuf_00032, lat, lon) ;
-         so4_c3_oldid       = pbuf_get_index('so4_c3_OLD')!(pbuf_00032, lat, lon) ;
-         num_c4_oldid       = pbuf_get_index('num_c4_OLD')!(pbuf_00032, lat, lon) ;
-         pom_c4_oldid       = pbuf_get_index('pom_c4_OLD')!(pbuf_00032, lat, lon) ;
-         bc_c4_oldid        = pbuf_get_index('bc_c4_OLD')!(pbuf_00032, lat, lon) ;
-         DP_FLXPRC_oldid    = pbuf_get_index('DP_FLXPRC_OLD')!(pbuf_00033, lat, lon) ;
-         DP_FLXSNW_oldid    = pbuf_get_index('DP_FLXSNW_OLD')!(pbuf_00033, lat, lon) ;
-         DP_CLDLIQ_oldid    = pbuf_get_index('DP_CLDLIQ_OLD')!(pbuf_00032, lat, lon) ;
-         DP_CLDICE_oldid    = pbuf_get_index('DP_CLDICE_OLD')!(pbuf_00032, lat, lon) ;
-         cush_oldid         = pbuf_get_index('cush_OLD')!(lat, lon) ;
-         QRS_oldid          = pbuf_get_index('QRS_OLD')!(pbuf_00032, lat, lon) ;
-         QRL_oldid          = pbuf_get_index('QRL_OLD')!(pbuf_00032, lat, lon) ;
-         ICIWP_oldid        = pbuf_get_index('ICIWP_OLD')!(pbuf_00032, lat, lon) ;
-         ICLWP_oldid        = pbuf_get_index('ICLWP_OLD')!(pbuf_00032, lat, lon) ;
-         kvm_oldid          = pbuf_get_index('kvm_OLD')!(pbuf_00033, lat, lon) ;
-         turbtype_oldid     = pbuf_get_index('turbtype_OLD')!(pbuf_00033, lat, lon) ;
-         smaw_oldid         = pbuf_get_index('smaw_OLD')!(pbuf_00033, lat, lon) ;
-         tauresx_oldid      = pbuf_get_index('tauresx_OLD')!(lat, lon) ;
-         tauresy_oldid      = pbuf_get_index('tauresy_OLD')!(lat, lon) ;
-         qpert_oldid        = pbuf_get_index('qpert_OLD')!(pbuf_00033, lat, lon) ;
-         T_TTEND_oldid      = pbuf_get_index('T_TTEND_OLD')!(pbuf_00032, lat, lon) ;
-
-         ! call buffer
-         call pbuf_get_field(pbuf,TEOUT_idx        ,TEOUT)!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
-         call pbuf_get_field(pbuf,DTCORE_idx       ,DTCORE)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CLDO_idx         ,CLDO)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,PRER_EVAP_idx    ,PRER_EVAP)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_T_idx         ,CC_T)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_qv_idx        ,CC_qv)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_ql_idx        ,CC_ql)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_qi_idx        ,CC_qi)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_nl_idx        ,CC_nl)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_ni_idx        ,CC_ni)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_qlst_idx      ,CC_qlst)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,am_evp_st_idx    ,am_evp_st)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,evprain_st_idx   ,evprain_st)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,evpsnow_st_idx   ,evpsnow_st)!(pbuf_00032, lat, lon)
-         call pbuf_get_field(pbuf,ACPRECL_idx      ,ACPRECL)!(lat, lon) ;
-         call pbuf_get_field(pbuf,ACGCME_idx       ,ACGCME)!(lat, lon) ;
-         call pbuf_get_field(pbuf,ACNUM_idx        ,ACNUM)!(lat, lon) ;
-         call pbuf_get_field(pbuf,RELVAR_idx       ,RELVAR)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ACCRE_ENHAN_idx  ,ACCRE_ENHAN)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,pblh_idx         ,pblh)!(lat, lon) ;
-         call pbuf_get_field(pbuf,tke_idx          ,tke)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,kvh_idx          ,kvh)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,tpert_idx        ,tpert)!(lat, lon) ;
-         call pbuf_get_field(pbuf,AST_idx          ,AST)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,AIST_idx         ,AIST)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ALST_idx         ,ALST)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,QIST_idx         ,QIST)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,QLST_idx         ,QLST)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CONCLD_idx       ,CONCLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CLD_idx          ,CLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,RAD_CLUBB_idx    ,RAD_CLUBB)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,WP2_nadv_idx     ,WP2_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,WP3_nadv_idx     ,WP3_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,WPTHLP_nadv_idx  ,WPTHLP_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,WPRTP_nadv_idx   ,WPRTP_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,RTPTHLP_nadv_idx ,RTPTHLP_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,RTP2_nadv_idx    ,RTP2_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,THLP2_nadv_idx   ,THLP2_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,UP2_nadv_idx     ,UP2_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,VP2_nadv_idx     ,VP2_nadv)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,UPWP_idx         ,UPWP)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,VPWP_idx         ,VPWP)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,THLM_idx         ,THLM)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,RTM_idx          ,RTM)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,UM_idx           ,UM)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,VM_idx           ,VM)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,DGNUM_idx        ,DGNUM)!(pbuf_00128, lat, lon) ;
-         call pbuf_get_field(pbuf,DGNUMWET_idx     ,DGNUMWET)!(pbuf_00128, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c1_idx       ,num_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,so4_c1_idx       ,so4_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,pom_c1_idx       ,pom_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,soa_c1_idx       ,soa_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,bc_c1_idx        ,bc_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,dst_c1_idx       ,dst_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ncl_c1_idx       ,ncl_c1)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c2_idx       ,num_c2)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,so4_c2_idx       ,so4_c2)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,soa_c2_idx       ,soa_c2)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ncl_c2_idx       ,ncl_c2)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,dst_c2_idx       ,dst_c2)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c3_idx       ,num_c3)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,dst_c3_idx       ,dst_c3)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ncl_c3_idx       ,ncl_c3)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,so4_c3_idx       ,so4_c3)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c4_idx       ,num_c4)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,pom_c4_idx       ,pom_c4)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,bc_c4_idx        ,bc_c4)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_FLXPRC_idx    ,DP_FLXPRC)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_FLXSNW_idx    ,DP_FLXSNW)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_CLDLIQ_idx    ,DP_CLDLIQ)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_CLDICE_idx    ,DP_CLDICE)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,cush_idx         ,cush)!(lat, lon) ;
-         call pbuf_get_field(pbuf,QRS_idx          ,QRS)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,QRL_idx          ,QRL)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ICIWP_idx        ,ICIWP)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ICLWP_idx        ,ICLWP)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,kvm_idx          ,kvm)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,turbtype_idx     ,turbtype)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,smaw_idx         ,smaw)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,tauresx_idx      ,tauresx)!(lat, lon) ;
-         call pbuf_get_field(pbuf,tauresy_idx      ,tauresy)!(lat, lon) ;
-         call pbuf_get_field(pbuf,qpert_idx        ,qpert)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,T_TTEND_idx      ,T_TTEND)!(pbuf_00032, lat, lon) ;
-
-         call pbuf_get_field(pbuf,TEOUT_oldid        ,TEOUT_OLD)!(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
-         call pbuf_get_field(pbuf,DTCORE_oldid       ,DTCORE_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CLDO_oldid         ,CLDO_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,PRER_EVAP_oldid    ,PRER_EVAP_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_T_oldid         ,CC_T_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_qv_oldid        ,CC_qv_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_ql_oldid        ,CC_ql_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_qi_oldid        ,CC_qi_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_nl_oldid        ,CC_nl_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_ni_oldid        ,CC_ni_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CC_qlst_oldid      ,CC_qlst_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,am_evp_st_oldid    ,am_evp_st_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,evprain_st_oldid   ,evprain_st_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,evpsnow_st_oldid   ,evpsnow_st_OLD)!(pbuf_00032, lat, lon)
-         call pbuf_get_field(pbuf,ACPRECL_oldid      ,ACPRECL_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,ACGCME_oldid       ,ACGCME_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,ACNUM_oldid        ,ACNUM_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,RELVAR_oldid       ,RELVAR_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ACCRE_ENHAN_oldid  ,ACCRE_ENHAN_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,pblh_oldid         ,pblh_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,tke_oldid          ,tke_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,kvh_oldid          ,kvh_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,tpert_oldid        ,tpert_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,AST_oldid          ,AST_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,AIST_oldid         ,AIST_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ALST_oldid         ,ALST_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,QIST_oldid         ,QIST_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,QLST_oldid         ,QLST_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CONCLD_oldid       ,CONCLD_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,CLD_oldid          ,CLD_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,RAD_CLUBB_oldid    ,RAD_CLUBB_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,WP2_nadv_oldid     ,WP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,WP3_nadv_oldid     ,WP3_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,WPTHLP_nadv_oldid  ,WPTHLP_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,WPRTP_nadv_oldid   ,WPRTP_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,RTPTHLP_nadv_oldid ,RTPTHLP_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,RTP2_nadv_oldid    ,RTP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,THLP2_nadv_oldid   ,THLP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,UP2_nadv_oldid     ,UP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,VP2_nadv_oldid     ,VP2_nadv_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,UPWP_oldid         ,UPWP_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,VPWP_oldid         ,VPWP_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,THLM_oldid         ,THLM_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,RTM_oldid          ,RTM_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,UM_oldid           ,UM_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,VM_oldid           ,VM_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,DGNUM_oldid        ,DGNUM_OLD)!(pbuf_00128, lat, lon) ;
-         call pbuf_get_field(pbuf,DGNUMWET_oldid     ,DGNUMWET_OLD)!(pbuf_00128, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c1_oldid       ,num_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,so4_c1_oldid       ,so4_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,pom_c1_oldid       ,pom_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,soa_c1_oldid       ,soa_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,bc_c1_oldid        ,bc_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,dst_c1_oldid       ,dst_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ncl_c1_oldid       ,ncl_c1_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c2_oldid       ,num_c2_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,so4_c2_oldid       ,so4_c2_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,soa_c2_oldid       ,soa_c2_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ncl_c2_oldid       ,ncl_c2_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,dst_c2_oldid       ,dst_c2_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c3_oldid       ,num_c3_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,dst_c3_oldid       ,dst_c3_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ncl_c3_oldid       ,ncl_c3_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,so4_c3_oldid       ,so4_c3_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,num_c4_oldid       ,num_c4_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,pom_c4_oldid       ,pom_c4_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,bc_c4_oldid        ,bc_c4_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_FLXPRC_oldid    ,DP_FLXPRC_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_FLXSNW_oldid    ,DP_FLXSNW_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_CLDLIQ_oldid    ,DP_CLDLIQ_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,DP_CLDICE_oldid    ,DP_CLDICE_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,cush_oldid         ,cush_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,QRS_oldid          ,QRS_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,QRL_oldid          ,QRL_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ICIWP_oldid        ,ICIWP_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,ICLWP_oldid        ,ICLWP_OLD)!(pbuf_00032, lat, lon) ;
-         call pbuf_get_field(pbuf,kvm_oldid          ,kvm_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,turbtype_oldid     ,turbtype_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,smaw_oldid         ,smaw_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,tauresx_oldid      ,tauresx_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,tauresy_oldid      ,tauresy_OLD)!(lat, lon) ;
-         call pbuf_get_field(pbuf,qpert_oldid        ,qpert_OLD)!(pbuf_00033, lat, lon) ;
-         call pbuf_get_field(pbuf,T_TTEND_oldid      ,T_TTEND_OLD)!(pbuf_00032, lat, lon) ;
-
-         ! swap normal to old
-      ncol = get_ncols_p(lchnk)
-      call rad_cnst_get_info(0, nmodes=nmodes) 
-      do i = 1, ncol 
-      do k = 1, pver ! 2d
-
-         do m = 1, nmodes ! 3d
-            DGNUM_old(i,k,m) = DGNUM(i,k,m) 
-            DGNUMWET_old(i,k,m) = DGNUMWET(i,k,m)   
-         end do ! nmodes
-         
-         DTCORE_old(i,k) = DTCORE(i,k)
-         CLDO_old(i,k) = CLDO(i,k)
-         PRER_EVAP_old(i,k) = PRER_EVAP(i,k)
-         CC_T_old(i,k) = CC_T(i,k)
-         CC_qv_old(i,k) = CC_qv(i,k)
-         CC_ql_old(i,k) = CC_ql(i,k)
-         CC_qi_old(i,k) = CC_qi(i,k)
-         CC_nl_old(i,k) = CC_nl(i,k)
-         CC_ni_old(i,k) = CC_ni(i,k)
-         CC_qlst_old(i,k) = CC_qlst(i,k)
-         am_evp_st_old(i,k) = am_evp_st(i,k)
-         evprain_st_old(i,k) = evprain_st(i,k)
-         evpsnow_st_old(i,k) = evpsnow_st(i,k)
-         RELVAR_old(i,k) = RELVAR(i,k)
-         ACCRE_ENHAN_old(i,k) = ACCRE_ENHAN(i,k)
-         tke_old(i,k) = tke(i,k)
-         kvh_old(i,k) = kvh(i,k)
-         AST_old(i,k) = AST(i,k)
-         AIST_old(i,k) = AIST(i,k)
-         ALST_old(i,k) = ALST(i,k)
-         QIST_old(i,k) = QIST(i,k)
-         QLST_old(i,k) = QLST(i,k)
-         CONCLD_old(i,k) = CONCLD(i,k)
-         CLD_old(i,k) = CLD(i,k)
-         RAD_CLUBB_old(i,k) = RAD_CLUBB(i,k)
-         WP2_nadv_old(i,k) = WP2_nadv(i,k)
-         WP3_nadv_old(i,k) = WP3_nadv(i,k)
-         WPTHLP_nadv_old(i,k) = WPTHLP_nadv(i,k)
-         WPRTP_nadv_old(i,k) = WPRTP_nadv(i,k)
-         RTPTHLP_nadv_old(i,k) = RTPTHLP_nadv(i,k)
-         RTP2_nadv_old(i,k) = RTP2_nadv(i,k)
-         THLP2_nadv_old(i,k) = THLP2_nadv(i,k)
-         UP2_nadv_old(i,k) = UP2_nadv(i,k)
-         VP2_nadv_old(i,k) = VP2_nadv(i,k)
-         UPWP_old(i,k) = UPWP(i,k)
-         VPWP_old(i,k) = VPWP(i,k)
-         THLM_old(i,k) = THLM(i,k)
-         RTM_old(i,k) = RTM(i,k)
-         UM_old(i,k) = UM(i,k)
-         VM_old(i,k) = VM(i,k)
-         num_c1_old(i,k) = num_c1(i,k)
-         so4_c1_old(i,k) = so4_c1(i,k)
-         pom_c1_old(i,k) = pom_c1(i,k)
-         soa_c1_old(i,k) = soa_c1(i,k)
-         bc_c1_old(i,k) = bc_c1(i,k)
-         dst_c1_old(i,k) = dst_c1(i,k)
-         ncl_c1_old(i,k) = ncl_c1(i,k)
-         num_c2_old(i,k) = num_c2(i,k)
-         so4_c2_old(i,k) = so4_c2(i,k)
-         soa_c2_old(i,k) = soa_c2(i,k)
-         ncl_c2_old(i,k) = ncl_c2(i,k)
-         dst_c2_old(i,k) = dst_c2(i,k)
-         num_c3_old(i,k) = num_c3(i,k)
-         dst_c3_old(i,k) = dst_c3(i,k)
-         ncl_c3_old(i,k) = ncl_c3(i,k)
-         so4_c3_old(i,k) = so4_c3(i,k)
-         num_c4_old(i,k) = num_c4(i,k)
-         pom_c4_old(i,k) = pom_c4(i,k)
-         bc_c4_old(i,k) = bc_c4(i,k)
-         DP_FLXPRC_old(i,k) = DP_FLXPRC(i,k)
-         DP_FLXSNW_old(i,k) = DP_FLXSNW(i,k)
-         DP_CLDLIQ_old(i,k) = DP_CLDLIQ(i,k)
-         DP_CLDICE_old(i,k) = DP_CLDICE(i,k)
-         QRS_old(i,k) = QRS(i,k)
-         QRL_old(i,k) = QRL(i,k)
-         ICIWP_old(i,k) = ICIWP(i,k)
-         ICLWP_old(i,k) = ICLWP(i,k)
-         kvm_old(i,k) = kvm(i,k)
-         turbtype_old(i,k) = turbtype(i,k)
-         smaw_old(i,k) = smaw(i,k)
-         qpert_old(i,k) = qpert(i,k)
-         T_TTEND_old(i,k) = T_TTEND(i,k)
-
-      end do ! k=1,pver
-      TEOUT_old(i) = TEOUT(i)
-      ACPRECL_old(i) = ACPRECL(i)
-      ACGCME_old(i) = ACGCME(i)
-      ACNUM_old(i) = ACNUM(i)
-      pblh_old(i) = pblh(i)
-      tpert_old(i) = tpert(i)
-      cush_old(i) = cush(i)
-      tauresx_old(i) = tauresx(i)
-      tauresy_old(i) = tauresy(i)
-      end do ! i=1,ncol
-      end do ! lchunk
-
-   end if ! mod(sec_spec,21600)==0  .AND. .NOT. do_restart
 
    call t_startf ('cam_run4_wrapup')
    call wrapup(rstwr, nlend)

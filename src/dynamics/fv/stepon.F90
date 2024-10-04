@@ -450,8 +450,8 @@ subroutine stepon_run3(dtime, cam_out, phys_state,             &
    freq_diag = state%check_dt
 
 
-   grid => state%grid ! swapped outside if loop - sweidman
    if (fv_monitor .and. mod(ncsecp, freq_diag) == 0) then
+      grid => state%grid ! returned to inside loop
 
       call t_barrierf('sync_fv_out', mpicom)
       call t_startf('fv_out')
@@ -463,9 +463,12 @@ subroutine stepon_run3(dtime, cam_out, phys_state,             &
    endif
 
    if (mod(ncsec,21600)==0 .and. .not. do_restart) then ! added all below - sweidman
+      if(masterproc) then
+         print *, 'swap dyn old to new ', ncsec
+      end if
 
 
-      dyn_in%old_phis      =dyn_in%phis   
+      dyn_in%old_phis      =dyn_in%phis  ! trying to uncomment all 
       dyn_in%old_ps        =dyn_in%ps    
       dyn_in%old_u3s       =dyn_in%u3s   
       dyn_in%old_v3s       =dyn_in%v3s   
@@ -498,7 +501,11 @@ end if
 if ( mod(ncsec,21600)==10800 .AND. do_restart ) then
 do_restart=.FALSE.
 
-      dyn_in%phis      =dyn_in%old_phis   
+      if(masterproc) then
+         print *, 'swap dyn new to old ', ncsec
+      end if
+
+      dyn_in%phis      =dyn_in%old_phis   ! trying uncomment all
       dyn_in%ps        =dyn_in%old_ps    
       dyn_in%u3s       =dyn_in%old_u3s   
       dyn_in%v3s       =dyn_in%old_v3s   

@@ -563,6 +563,8 @@ subroutine dyn_init(dyn_in, dyn_out)
    jlastxy  = grid%jlastxy
    km       = grid%km
 
+   call dyn_free_interface( dyn_in, dyn_out ) ! testing if works - sweid
+
    allocate(dyn_in%phis(  ifirstxy:ilastxy,jfirstxy:jlastxy),          &
             dyn_in%ps(    ifirstxy:ilastxy,jfirstxy:jlastxy),          &
             dyn_in%u3s(   ifirstxy:ilastxy,jfirstxy:jlastxy,km),       &

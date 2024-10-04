@@ -336,7 +336,8 @@ CONTAINS
     ! Uses
     !
    use physics_types,   only: physics_ptend, physics_ptend_reset ! added - sweidman
-    !-----------------------------------------------------------------------
+   use seq_drydep_mod, only: n_drydep
+   !-----------------------------------------------------------------------
     !
     ! Arguments
     !
@@ -375,6 +376,7 @@ CONTAINS
      
     type(physics_ptend)     :: ptend ! added - sweidman
     integer :: c, i, q, ncols
+    !logical,save :: do_restart=.true. ! end added
     logical,save :: do_restart=.FALSE. ! end added
 
     logical :: rstwr_sync      ! .true. ==> write restart file before returning
@@ -447,6 +449,7 @@ CONTAINS
        call cam_run3( cam_out )
        call t_stopf  ('CAM_run3')
 
+      ! this is where the buffer vars switch
        call t_startf ('CAM_run4')
        call cam_run4( cam_out, cam_in, rstwr, nlend, &
             yr_spec=yr_sync, mon_spec=mon_sync, day_spec=day_sync, sec_spec=tod_sync)
@@ -460,9 +463,27 @@ CONTAINS
 
        ! add swap here - sweidman
 
-       if (mod(tod,21600)==0 .and. .not. do_restart) then 
-         print *, 'swap 2-a'
-  
+       !if(masterproc) then
+         !print*, 'checking whether cam_in vars exist'
+         !if ( associated(cam_in(c)%meganflx) ) print*, 'meganflx'
+         !print*, 'not megan' 
+         !if ( associated(cam_in(c)%fireflx) .and. associated(cam_in(c)%fireztop) ) print*, 'fireflux'
+         !print*, 'not fire'  
+         !if ( index_x2a_Sl_ddvel/=0 .and. n_drydep>0 ) print*, 'dry dep vel'
+         !if (index_x2a_Fall_fco2_lnd /= 0) print*, 'fall'
+         !if (index_x2a_Faoo_fco2_ocn /= 0) print*, 'faoo fco2'
+         !if (index_x2a_Faoo_fdms_ocn /= 0) print*, 'faoo fdms'
+         !if (index_a2x_Sa_co2prog /= 0) print*, 'atm prog co2'
+         !if (index_a2x_Sa_co2diag /= 0) print*, 'atm diag co2'
+         !if (index_a2x_Faxa_nhx > 0 ) print*, 'nhx nit'
+         !if (index_a2x_Faxa_noy > 0 ) print*, 'noy nit'
+      !endif 
+
+       if (mod(tod,21600)==0 .and. .not. do_restart) then
+         if(masterproc) then
+            print *, 'swap cam old to new', tod
+          endif 
+         
          do_restart=.TRUE.
          do c=begchunk,endchunk
             ncols = get_ncols_p(c)
@@ -487,10 +508,26 @@ CONTAINS
                cam_in(c)%old_u10(i) = cam_in(c)%u10(i)
                cam_in(c)%old_icefrac(i) = cam_in(c)%icefrac(i)
                cam_in(c)%old_ocnfrac(i) = cam_in(c)%ocnfrac(i)
-               ! skipping ram1, fv, soilw, others with if statements
+               cam_in(c)%old_landfrac(i) = cam_in(c)%landfrac(i)
+               if ( associated(cam_in(c)%ram1) ) &
+                  cam_in(c)%old_ram1(i) = cam_in(c)%ram1(i)
+               if ( associated(cam_in(c)%fv) ) &
+                  cam_in(c)%old_fv(i) = cam_in(c)%fv(i)
+               if ( associated(cam_in(c)%soilw) ) &
+                  cam_in(c)%old_soilw(i) = cam_in(c)%soilw(i)
+               if ( associated(cam_in(c)%dstflx) ) then
+                  cam_in(c)%old_dstflx(i,1) = cam_in(c)%dstflx(i,1)
+                  cam_in(c)%old_dstflx(i,2) = cam_in(c)%dstflx(i,2)
+                  cam_in(c)%old_dstflx(i,3) = cam_in(c)%dstflx(i,3)
+                  cam_in(c)%old_dstflx(i,4) = cam_in(c)%dstflx(i,4)
+               endif
+               if ( index_x2a_Sl_ddvel/=0 .and. n_drydep>0 ) then
+                  cam_in(c)%old_depvel(i,:n_drydep) = cam_in(c)%depvel(i,:n_drydep) 
+               endif
+
                cam_in(c)%old_ustar(i) = cam_in(c)%ustar(i)
                cam_in(c)%old_re(i) = cam_in(c)%re(i)
-               cam_in(c)%old_ssq(i) = cam_in(c)%ssq(i) ! maybe should skip this too?
+               cam_in(c)%old_ssq(i) = cam_in(c)%ssq(i) 
 
                ! from atm_import_export list of cam_out
                cam_out(c)%old_psl(i) = cam_out(c)%psl(i)
@@ -527,6 +564,13 @@ CONTAINS
                cam_out(c)%old_dstwet4(i) = cam_out(c)%dstwet4(i)
                cam_out(c)%old_dstdry4(i) = cam_out(c)%dstdry4(i)
 
+               if (index_a2x_Sa_co2prog /= 0) then
+                  cam_out(c)%old_co2prog(i) = cam_out(c)%co2prog(i) ! atm prognostic co2
+               end if
+               if (index_a2x_Sa_co2diag /= 0) then
+                  cam_out(c)%old_co2diag(i) = cam_out(c)%co2diag(i) ! atm diagnostic co2
+               end if
+
                do q=1,pcnst
                   cam_out(c)%old_qbot(i,q)=cam_out(c)%qbot(i,q)
                   cam_in(c)%old_cflx(i,q)      = cam_in(c)%cflx(i,q)
@@ -537,8 +581,10 @@ CONTAINS
 
        if ( mod(tod,21600)==10800 .AND. do_restart ) then
 
-         print *, 'swap 1-a'
- 
+         if(masterproc) then
+            print *,  'swap cam new to old', tod
+          endif 
+
          do_restart=.FALSE.
   
          do c=begchunk,endchunk
@@ -562,7 +608,25 @@ CONTAINS
                cam_in(c)%u10(i) = cam_in(c)%old_u10(i)
                cam_in(c)%icefrac(i) = cam_in(c)%old_icefrac(i)
                cam_in(c)%ocnfrac(i) = cam_in(c)%old_ocnfrac(i)
+
                ! skipping ram1, fv, soilw, others with if statements
+               cam_in(c)%landfrac(i) = cam_in(c)%old_landfrac(i)
+               if ( associated(cam_in(c)%ram1) ) &
+                  cam_in(c)%ram1(i) = cam_in(c)%old_ram1(i)
+               if ( associated(cam_in(c)%fv) ) &
+                  cam_in(c)%fv(i) = cam_in(c)%old_fv(i)
+               if ( associated(cam_in(c)%soilw) ) &
+                  cam_in(c)%soilw(i) = cam_in(c)%old_soilw(i)
+               if ( associated(cam_in(c)%dstflx) ) then
+                  cam_in(c)%dstflx(i,1) = cam_in(c)%old_dstflx(i,1)
+                  cam_in(c)%dstflx(i,2) = cam_in(c)%old_dstflx(i,2)
+                  cam_in(c)%dstflx(i,3) = cam_in(c)%old_dstflx(i,3)
+                  cam_in(c)%dstflx(i,4) = cam_in(c)%old_dstflx(i,4)
+               endif
+               if ( index_x2a_Sl_ddvel/=0 .and. n_drydep>0 ) then
+                  cam_in(c)%depvel(i,:n_drydep) = cam_in(c)%old_depvel(i,:n_drydep) 
+               endif
+
                cam_in(c)%ustar(i) = cam_in(c)%old_ustar(i)
                cam_in(c)%re(i) = cam_in(c)%old_re(i)
                cam_in(c)%ssq(i) = cam_in(c)%old_ssq(i)
@@ -601,14 +665,19 @@ CONTAINS
                cam_out(c)%dstwet4(i) = cam_out(c)%old_dstwet4(i)
                cam_out(c)%dstdry4(i) = cam_out(c)%old_dstdry4(i)
 
+               if (index_a2x_Sa_co2prog /= 0) then
+                  cam_out(c)%co2prog(i) = cam_out(c)%old_co2prog(i) ! atm prognostic co2
+               end if
+               if (index_a2x_Sa_co2diag /= 0) then
+                  cam_out(c)%co2diag(i) = cam_out(c)%old_co2diag(i) ! atm diagnostic co2
+               end if
+
                do q=1,pcnst
                   cam_out(c)%qbot(i,q)=cam_out(c)%old_qbot(i,q)
                   cam_in(c)%cflx(i,q)      = cam_in(c)%old_cflx(i,q)
              end do
          end do
        end do
-
-       print *, 'done swap 1-a'
 
        ! zero out tendencies
        call physics_ptend_reset(ptend)
@@ -617,7 +686,7 @@ CONTAINS
        end if
        ! end add
 
-       ! Run cam radiation/clouds (run1)
+       ! Run cam radiation/clouds (run1) -- moved up sweid (this is the next timestep)
 
        call t_startf ('CAM_run1')
        call cam_run1 ( cam_in, cam_out )
@@ -680,6 +749,12 @@ CONTAINS
       call memmon_reset_addr()
     endif
 #endif
+
+if(masterproc) then
+   print *, 'after atm_run: ', tod
+   print *, 'after atm_run: ', cam_out(begchunk)%tbot(2)
+   print *, cam_in(begchunk)%shf(2)
+ end if
 
   end subroutine atm_run_mct
 

@@ -2930,7 +2930,7 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
    
    call get_curr_date(yr, mon, day, ncsec)
    
-   yr=max(yr,2011)
+   yr=max(yr,1980)
    
    if (masterproc) then
       write(iulog,*)  'iyear = ', yr
@@ -2944,7 +2944,9 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
    
 
        call get_horiz_grid_dim_d(hdim1, hdim2)
-       write(iulog,*) "horiz_grid hdim1, hdim2", hdim1, hdim2 
+       if (masterproc) then
+         write(iulog,*) "horiz_grid hdim1, hdim2", hdim1, hdim2
+       endif 
    
    
    modstep=int((mod(istep+6, 48)) / 6)
@@ -2960,37 +2962,37 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
       if (hdim1 > 30) then ! for coarse grid, it's 24 x 19
        if (mon<10) then
           if (day<10) then
-              write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4,"0", I1,"-0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
-            !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4,"0", I1,"0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
+              !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4,"0", I1,"-0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
+            write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4,"0", I1,"0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
           else 
-             write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4,"0", I1,"-",I2,"_",I1,".nc")' ) yr,mon, day, modstep
-            !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4,"0", I1,I2,"_",I1,".nc")' ) yr,mon, day, modstep
+             !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4,"0", I1,"-",I2,"_",I1,".nc")' ) yr,mon, day, modstep
+            write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4,"0", I1,I2,"_",I1,".nc")' ) yr,mon, day, modstep
           endif 
        else   
           if (day<10) then
-              write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4,I2,"-0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
-            !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4,I2,"0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
+              !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4,I2,"-0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
+            write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4,I2,"0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
           else 
-              write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4, I2,"-",I2,"_",I1,".nc")' ) yr,mon, day, modstep
-            !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4, I2,I2,"_",I1,".nc")' ) yr,mon, day, modstep
+              !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dart32_",I4, I2,"-",I2,"_",I1,".nc")' ) yr,mon, day, modstep
+            write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4, I2,I2,"_",I1,".nc")' ) yr,mon, day, modstep
           endif 
        endif  
       else
          if (mon<10) then
             if (day<10) then
                write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dartcoarse_",I4,"0", I1,"-0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
-               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4,"0", I1,"0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
+               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4,"0", I1,"0",I1,"_",I1,".nc")' ) yr,mon, day,modstep
             else 
                write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dartcoarse_",I4,"0", I1,"-",I2,"_",I1,".nc")' ) yr,mon, day, modstep
-               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4,"0", I1,I2,"_",I1,".nc")' ) yr,mon, day, modstep
+               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4,"0", I1,I2,"_",I1,".nc")' ) yr,mon, day, modstep
             endif 
          else   
             if (day<10) then
                write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dartcoarse_",I4,I2,"-0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
-               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4,I2,"0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
+               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4,I2,"0",I1,"_",I1,".nc")' ) yr,mon, day, modstep
             else 
                write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/dartIC/dartcoarse_",I4, I2,"-",I2,"_",I1,".nc")' ) yr,mon, day, modstep
-               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA_cam6/IC/MERRA2_",I4, I2,I2,"_",I1,".nc")' ) yr,mon, day, modstep
+               !write (filename, '("/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f09/MERRA2_",I4, I2,I2,"_",I1,".nc")' ) yr,mon, day, modstep
             endif 
          endif 
       endif
@@ -3066,6 +3068,10 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
    !if in "corrector" step: divide difference by 6h to get tendency and apply it to physics
    !
    if (corrector_step) then
+      if(masterproc) then
+         print *, 'applying corrector ptend'
+         !write(iulog,*) 'replay: Reading analyses:',trim(filename)
+      endif
    #if ( defined SPMD )
    do c = begchunk, endchunk
           ! reallocate ptend
@@ -3114,7 +3120,8 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
    
 
          if(masterproc) then
-            write(iulog,*) 'replay: Reading analyses:',trim(filename)
+            print *, 'replay: Reading analyses:',trim(filename)
+            !write(iulog,*) 'replay: Reading analyses:',trim(filename)
          endif
         
          call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
@@ -3137,11 +3144,13 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
 
          call read_netcdf_SW(trim(filename), Replay_nlon, Replay_nlat)
    
-      !call pio_closefile(File) 
+      !call pio_closefile(File)
+      if(masterproc) then 
       write(iulog,*) "done read in reanalysis"
       write(iulog,*) "state(c)%sforce(1,1): ", state(begchunk)%sforce(1,1)
       write(iulog,*) "begchunk: ", begchunk
       write(iulog,*) "anal_field T(1,1,1): ", Tfield3d(1,1,begchunk)
+      endif
    
            do c = begchunk, endchunk
                ncols = get_ncols_p(c)
@@ -3155,9 +3164,11 @@ subroutine read_netcdf_SW(anal_file, Replay_nlon, Replay_nlat)
                end do
            end do
 
+           if(masterproc) then
            write(iulog,*) "done update state"
            write(iulog,*) "state(c)%sforce(1,1): ", state(begchunk)%sforce(1,1)
            write(iulog,*) "state(c)%sforce(2,2): ", state(begchunk)%sforce(2,2)
+           endif
    
            !deallocate(tmpfield)
            deallocate(Tfield3d)
