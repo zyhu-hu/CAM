@@ -361,7 +361,9 @@ contains
 
     use physics_buffer,     only: pbuf_add_field, dtype_r8
     use rad_constituents,   only: rad_cnst_get_info
+#ifdef CRM
     use crmdims,            only: crm_nx, crm_ny, crm_nz 
+#endif
     !---------------------------Local variables-----------------------------
     !
     logical :: use_spcam ! added for spcam
@@ -457,6 +459,7 @@ contains
     call pbuf_add_field('T_TTEND_OLD', 'global', dtype_r8, (/pcols,pver/),  T_TTEND_oldid      ) !(pbuf_00032, lat, lon) ;
 
     if (use_SPCAM) then
+#ifdef CRM
       call pbuf_add_field('CRM_U_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_u_oldid)
       call pbuf_add_field('CRM_V_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_v_oldid)
       call pbuf_add_field('CRM_W_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_w_oldid)
@@ -465,6 +468,7 @@ contains
       call pbuf_add_field('CRM_QT_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qt_oldid)
       call pbuf_add_field('CRM_QP_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qp_oldid)
       call pbuf_add_field('CRM_QN_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qn_oldid)
+#endif
     end if
 
   end subroutine 
