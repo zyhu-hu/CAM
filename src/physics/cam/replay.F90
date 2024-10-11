@@ -6,193 +6,21 @@ module nudging
 ! Author: Sarah Weidman
 !
 ! Description:
-!    
-!    This module assumes that the user has {U,V,T,Q,PS} values from analyses 
-!    which have been preprocessed onto the current model grid and adjusted 
-!    for differences in topography. It is also assumed that these resulting 
-!    values and are stored in individual files which are indexed with respect 
-!    to year, month, day, and second of the day. When the model is inbetween 
-!    the given begining and ending times, a relaxation forcing is added to 
-!    nudge the model toward the analyses values determined from the forcing 
-!    option specified. After the model passes the ending analyses time, the 
-!    forcing discontinues.
-!
-!    Some analyses products can have gaps in the available data, where values
-!    are missing for some interval of time. When files are missing, the nudging 
-!    force is switched off for that interval of time, so we effectively 'coast'
-!    thru the gap. 
-!
-!    Currently, the nudging module is set up to accomodate nudging of PS
-!    values, however that functionality requires forcing that is applied in
-!    the selected dycore and is not yet implemented. 
-!
-!    The nudging of the model toward the analyses data is controlled by 
-!    the 'nudging_nl' namelist in 'user_nl_cam'; whose variables control the
-!    time interval over which nudging is applied, the strength of the nudging
-!    tendencies, and its spatial distribution. 
-!
-!    FORCING:
-!    --------
-!    Nudging tendencies are applied as a relaxation force between the current
-!    model state values and target state values derived from the avalilable
-!    analyses. The form of the target values is selected by the 'Nudge_Force_Opt'
-!    option, the timescale of the forcing is determined from the given 
-!    'Nudge_TimeScale_Opt', and the nudging strength Alpha=[0.,1.] for each 
-!    variable is specified by the 'Nudge_Xcoef' values. Where X={U,V,T,Q,PS}
-!
-!           F_nudge = Alpha*((Target-Model(t_curr))/TimeScale
-!
-!
-!    WINDOWING:
-!    ----------
-!    The region of applied nudging can be limited using Horizontal/Vertical 
-!    window functions that are constructed using a parameterization of the 
-!    Heaviside step function. 
-!
-!    The Heaviside window function is the product of separate horizonal and vertical 
-!    windows that are controled via 12 parameters:
-!
-!        Nudge_Hwin_lat0:     Specify the horizontal center of the window in degrees. 
-!        Nudge_Hwin_lon0:     The longitude must be in the range [0,360] and the 
-!                             latitude should be [-90,+90].
-!        Nudge_Hwin_latWidth: Specify the lat and lon widths of the window as positive 
-!        Nudge_Hwin_lonWidth: values in degrees.Setting a width to a large value (e.g. 999) 
-!                             renders the window a constant in that direction.
-!        Nudge_Hwin_latDelta: Controls the sharpness of the window transition with a 
-!        Nudge_Hwin_lonDelta: length in degrees. Small non-zero values yeild a step 
-!                             function while a large value yeilds a smoother transition.
-!        Nudge_Hwin_Invert  : A logical flag used to invert the horizontal window function 
-!                             to get its compliment.(e.g. to nudge outside a given window).
-!
-!        Nudge_Vwin_Lindex:   In the vertical, the window is specified in terms of model 
-!        Nudge_Vwin_Ldelta:   level indcies. The High and Low transition levels should 
-!        Nudge_Vwin_Hindex:   range from [0,(NLEV+1)]. The transition lengths are also 
-!        Nudge_Vwin_Hdelta:   specified in terms of model indices. For a window function 
-!                             constant in the vertical, the Low index should be set to 0,
-!                             the High index should be set to (NLEV+1), and the transition 
-!                             lengths should be set to 0.001 
-!        Nudge_Vwin_Invert  : A logical flag used to invert the vertical window function 
-!                             to get its compliment.
-!
-!        EXAMPLE: For a channel window function centered at the equator and independent 
-!                 of the vertical (30 levels):
-!                        Nudge_Hwin_lat0     = 0.         Nudge_Vwin_Lindex = 0.
-!                        Nudge_Hwin_latWidth = 30.        Nudge_Vwin_Ldelta = 0.001
-!                        Nudge_Hwin_latDelta = 5.0        Nudge_Vwin_Hindex = 31.
-!                        Nudge_Hwin_lon0     = 180.       Nudge_Vwin_Hdelta = 0.001 
-!                        Nudge_Hwin_lonWidth = 999.       Nudge_Vwin_Invert = .false.
-!                        Nudge_Hwin_lonDelta = 1.0
-!                        Nudge_Hwin_Invert   = .false.
-!
-!                 If on the other hand one wanted to apply nudging at the poles and
-!                 not at the equator, the settings would be similar but with:
-!                        Nudge_Hwin_Invert = .true.
-!
-!    A user can preview the window resulting from a given set of namelist values before 
-!    running the model. Lookat_NudgeWindow.ncl is a script avalable in the tools directory 
-!    which will read in the values for a given namelist and display the resulting window.
-!
-!    The module is currently configured for only 1 window function. It can readily be 
-!    extended for multiple windows if the need arises.
-!
-!
-! Input/Output Values:
-!    Forcing contributions are available for history file output by 
-!    the names:    {'Nudge_U','Nudge_V','Nudge_T',and 'Nudge_Q'}
-!    The target values that the model state is nudged toward are available for history 
-!    file output via the variables:  {'Target_U','Target_V','Target_T',and 'Target_Q'}
-!
-!    &nudging_nl
-!      Nudge_Model         - LOGICAL toggle to activate nudging.
-!                              TRUE  -> Nudging is on.
-!                              FALSE -> Nudging is off.                            [DEFAULT]
-!
-!      Nudge_Path          - CHAR path to the analyses files.
-!                              (e.g. '/glade/scratch/USER/inputdata/nudging/ERAI-Data/')
-!
-!      Nudge_File_Template - CHAR Analyses filename with year, month, day, and second
-!                                 values replaced by %y, %m, %d, and %s respectively.
-!                              (e.g. '%y/ERAI_ne30np4_L30.cam2.i.%y-%m-%d-%s.nc')
-!
-!      Nudge_Times_Per_Day - INT Number of analyses files available per day.
-!                              1 --> daily analyses.
-!                              4 --> 6 hourly analyses.
-!                              8 --> 3 hourly.
-!
-!      Model_Times_Per_Day - INT Number of times to update the model state (used for nudging) 
-!                                each day. The value is restricted to be longer than the 
-!                                current model timestep and shorter than the analyses 
-!                                timestep. As this number is increased, the nudging
-!                                force has the form of newtonian cooling.
-!                              48 --> 1800 Second timestep.
-!                              96 -->  900 Second timestep.
-!
-!      Nudge_Beg_Year      - INT nudging begining year.  [1979- ]
-!      Nudge_Beg_Month     - INT nudging begining month. [1-12]
-!      Nudge_Beg_Day       - INT nudging begining day.   [1-31]
-!      Nudge_End_Year      - INT nudging ending year.    [1979-]
-!      Nudge_End_Month     - INT nudging ending month.   [1-12]
-!      Nudge_End_Day       - INT nudging ending day.     [1-31]
-!
-!      Nudge_Force_Opt     - INT Index to select the nudging Target for a relaxation 
-!                                forcing of the form: 
-!                                where (t'==Analysis times ; t==Model Times)
-!
-!                              0 -> NEXT-OBS: Target=Anal(t'_next)                 [DEFAULT]
-!                              1 -> LINEAR:   Target=(F*Anal(t'_curr) +(1-F)*Anal(t'_next))
-!                                                 F =(t'_next - t_curr )/Tdlt_Anal
-!
-!      Nudge_TimeScale_Opt - INT Index to select the timescale for nudging.
-!                                where (t'==Analysis times ; t==Model Times) 
-!
-!                              0 -->  TimeScale = 1/Tdlt_Anal                      [DEFAULT]
-!                              1 -->  TimeScale = 1/(t'_next - t_curr )
-!
-!      Nudge_Uprof         - INT index of profile structure to use for U.  [0,1,2]
-!      Nudge_Vprof         - INT index of profile structure to use for V.  [0,1,2]
-!      Nudge_Tprof         - INT index of profile structure to use for T.  [0,1,2]
-!      Nudge_Qprof         - INT index of profile structure to use for Q.  [0,1,2]
-!      Nudge_PSprof        - INT index of profile structure to use for PS. [0,N/A]
-!
-!                                The spatial distribution is specified with a profile index.
-!                                 Where:  0 == OFF      (No Nudging of this variable)
-!                                         1 == CONSTANT (Spatially Uniform Nudging)
-!                                         2 == HEAVISIDE WINDOW FUNCTION
-!
-!      Nudge_Ucoef         - REAL fractional nudging coeffcient for U. 
-!      Nudge_Vcoef         - REAL fractional nudging coeffcient for V. 
-!      Nudge_Tcoef         - REAL fractional nudging coeffcient for T. 
-!      Nudge_Qcoef         - REAL fractional nudging coeffcient for Q. 
-!      Nudge_PScoef        - REAL fractional nudging coeffcient for PS. 
-!
-!                                 The strength of the nudging is specified as a fractional 
-!                                 coeffcient between [0,1].
-!           
-!      Nudge_Hwin_lat0     - REAL latitudinal center of window in degrees.
-!      Nudge_Hwin_lon0     - REAL longitudinal center of window in degrees.
-!      Nudge_Hwin_latWidth - REAL latitudinal width of window in degrees.
-!      Nudge_Hwin_lonWidth - REAL longitudinal width of window in degrees.
-!      Nudge_Hwin_latDelta - REAL latitudinal transition length of window in degrees.
-!      Nudge_Hwin_lonDelta - REAL longitudinal transition length of window in degrees.
-!      Nudge_Hwin_Invert   - LOGICAL FALSE= value=1 inside the specified window, 0 outside
-!                                    TRUE = value=0 inside the specified window, 1 outside
-!      Nudge_Vwin_Lindex   - REAL LO model index of transition
-!      Nudge_Vwin_Hindex   - REAL HI model index of transition
-!      Nudge_Vwin_Ldelta   - REAL LO transition length 
-!      Nudge_Vwin_Hdelta   - REAL HI transition length 
-!      Nudge_Vwin_Invert   - LOGICAL FALSE= value=1 inside the specified window, 0 outside
-!                                    TRUE = value=0 inside the specified window, 1 outside
-!    /
-!          
+!         
 !=====================================================================
   ! Useful modules
   !------------------
   use shr_kind_mod,   only:r8=>SHR_KIND_R8,cs=>SHR_KIND_CS,cl=>SHR_KIND_CL
   use time_manager,   only:timemgr_time_ge,timemgr_time_inc,get_curr_date,get_step_size
-  use phys_grid   ,   only:scatter_field_to_chunk
+  use phys_grid   ,   only:scatter_field_to_chunk, get_ncols_p, get_lat_all_p,get_lon_all_p, &
+        get_rlat_all_p,get_lat_p,get_lon_p
   use cam_abortutils, only:endrun
   use spmd_utils  ,   only:masterproc
   use cam_logfile ,   only:iulog
+  use physics_types,    only: physics_state, physics_tend, physics_ptend, physics_update, &
+        physics_ptend_init
+  use ppgrid,           only: begchunk, endchunk, pcols, pver, pverp, psubcols
+  use phys_control, only: phys_getopts
 #ifdef SPMD
   use mpishorthand
 #endif
@@ -204,103 +32,112 @@ module nudging
   private
 
   public:: replay_readnl
-  public:: replay_init
+  public:: replay_register
   public:: replay_correction
   public:: read_netcdf_replay
 
-  ! Nudging Parameters
-  !--------------------
-  logical          :: Nudge_Model       =.false.
-  logical          :: Nudge_ON          =.false.
-  logical          :: Nudge_Initialized =.false.
-  character(len=cl):: Nudge_Path
-  character(len=cs):: Nudge_File,Nudge_File_Template
-  integer          :: Nudge_Force_Opt
-  integer          :: Nudge_TimeScale_Opt
-  integer          :: Nudge_TSmode
-  integer          :: Nudge_Times_Per_Day
-  integer          :: Model_Times_Per_Day
-  real(r8)         :: Nudge_Ucoef,Nudge_Vcoef
-  integer          :: Nudge_Uprof,Nudge_Vprof
-  real(r8)         :: Nudge_Qcoef,Nudge_Tcoef
-  integer          :: Nudge_Qprof,Nudge_Tprof
-  real(r8)         :: Nudge_PScoef
-  integer          :: Nudge_PSprof
-  integer          :: Nudge_Beg_Year ,Nudge_Beg_Month
-  integer          :: Nudge_Beg_Day  ,Nudge_Beg_Sec
-  integer          :: Nudge_End_Year ,Nudge_End_Month
-  integer          :: Nudge_End_Day  ,Nudge_End_Sec
-  integer          :: Nudge_Curr_Year,Nudge_Curr_Month
-  integer          :: Nudge_Curr_Day ,Nudge_Curr_Sec
-  integer          :: Nudge_Next_Year,Nudge_Next_Month
-  integer          :: Nudge_Next_Day ,Nudge_Next_Sec
-  integer          :: Nudge_Step
-  integer          :: Model_Curr_Year,Model_Curr_Month
-  integer          :: Model_Curr_Day ,Model_Curr_Sec
-  integer          :: Model_Next_Year,Model_Next_Month
-  integer          :: Model_Next_Day ,Model_Next_Sec
-  integer          :: Model_Step
-  real(r8)         :: Nudge_Hwin_lat0
-  real(r8)         :: Nudge_Hwin_latWidth
-  real(r8)         :: Nudge_Hwin_latDelta
-  real(r8)         :: Nudge_Hwin_lon0
-  real(r8)         :: Nudge_Hwin_lonWidth
-  real(r8)         :: Nudge_Hwin_lonDelta
-  logical          :: Nudge_Hwin_Invert = .false.
-  real(r8)         :: Nudge_Hwin_lo
-  real(r8)         :: Nudge_Hwin_hi
-  real(r8)         :: Nudge_Vwin_Hindex
-  real(r8)         :: Nudge_Vwin_Hdelta
-  real(r8)         :: Nudge_Vwin_Lindex
-  real(r8)         :: Nudge_Vwin_Ldelta
-  logical          :: Nudge_Vwin_Invert =.false.
-  real(r8)         :: Nudge_Vwin_lo
-  real(r8)         :: Nudge_Vwin_hi
-  real(r8)         :: Nudge_Hwin_latWidthH
-  real(r8)         :: Nudge_Hwin_lonWidthH
-  real(r8)         :: Nudge_Hwin_max
-  real(r8)         :: Nudge_Hwin_min
+  integer ::  TEOUT_oldid        = 0 !(lat, lon) ; ! pbuf vars from cam.r. output - sweidman
+  integer ::  DTCORE_oldid  = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CLDO_oldid         = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  PRER_EVAP_oldid    = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_T_oldid         = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_qv_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_ql_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_qi_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_nl_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_ni_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CC_qlst_oldid      = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  am_evp_st_oldid    = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  evprain_st_oldid   = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  evpsnow_st_oldid   = 0 !(pbuf_00032, lat, lon)
+  integer ::  ACPRECL_oldid      = 0 !(lat, lon) ;
+  integer ::  ACGCME_oldid       = 0 !(lat, lon) ;
+  integer ::  ACNUM_oldid        = 0 !(lat, lon) ;
+  integer ::  RELVAR_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ACCRE_ENHAN_oldid  = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  pblh_oldid         = 0 !(lat, lon) ;
+  integer ::  tke_oldid          = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  kvh_oldid          = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  tpert_oldid        = 0 !(lat, lon) ;
+  integer ::  AST_oldid          = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  AIST_oldid         = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ALST_oldid         = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  QIST_oldid         = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  QLST_oldid         = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CONCLD_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  CLD_oldid          = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  RAD_CLUBB_oldid    = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  WP2_nadv_oldid     = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  WP3_nadv_oldid     = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  WPTHLP_nadv_oldid  = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  WPRTP_nadv_oldid   = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  RTPTHLP_nadv_oldid = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  RTP2_nadv_oldid    = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  THLP2_nadv_oldid   = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  UP2_nadv_oldid     = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  VP2_nadv_oldid     = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  UPWP_oldid         = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  VPWP_oldid         = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  THLM_oldid         = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  RTM_oldid          = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  UM_oldid           = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  VM_oldid           = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  DGNUM_oldid        = 0 !(pbuf_00128, lat, lon) ;
+  integer ::  DGNUMWET_oldid     = 0 !(pbuf_00128, lat, lon) ;
+  integer ::  num_c1_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  so4_c1_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  pom_c1_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  soa_c1_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  bc_c1_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  dst_c1_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ncl_c1_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  num_c2_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  so4_c2_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  soa_c2_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ncl_c2_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  dst_c2_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  num_c3_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  dst_c3_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ncl_c3_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  so4_c3_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  num_c4_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  pom_c4_oldid       = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  bc_c4_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  DP_FLXPRC_oldid    = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  DP_FLXSNW_oldid    = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  DP_CLDLIQ_oldid    = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  DP_CLDICE_oldid    = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  cush_oldid         = 0 !(lat, lon) ;
+  integer ::  QRS_oldid          = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  QRL_oldid          = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ICIWP_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  ICLWP_oldid        = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  kvm_oldid          = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  turbtype_oldid     = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  smaw_oldid         = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  tauresx_oldid      = 0 !(lat, lon) ;
+  integer ::  tauresy_oldid      = 0 !(lat, lon) ;
+  integer ::  qpert_oldid        = 0 !(pbuf_00033, lat, lon) ;
+  integer ::  T_TTEND_oldid      = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  crm_u_oldid        = 0 
+  integer ::  crm_v_oldid        = 0 
+  integer ::  crm_w_oldid        = 0 
+  integer ::  crm_t_oldid        = 0
+  integer ::  crm_qrad_oldid        = 0 
+  integer ::  crm_qt_oldid        = 0 
+  integer ::  crm_qp_oldid        = 0 
+  integer ::  crm_qn_oldid        = 0  
 
-  ! Nudging State Arrays
-  !-----------------------
-  integer Nudge_nlon,Nudge_nlat,Nudge_ncol,Nudge_nlev
-  real(r8),allocatable::Target_U     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable::Target_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable::Target_T     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable::Target_S     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable::Target_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable::Target_PS    (:,:)    !(pcols,begchunk:endchunk)
-  real(r8),allocatable:: Model_U     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Model_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Model_T     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Model_S     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Model_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Model_PS    (:,:)    !(pcols,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Utau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Vtau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Stau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Qtau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_PStau (:,:)    !(pcols,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Ustep (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Vstep (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Sstep (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_Qstep (:,:,:)  !(pcols,pver,begchunk:endchunk)
-  real(r8),allocatable:: Nudge_PSstep(:,:)    !(pcols,begchunk:endchunk)
 
-  ! Nudging Observation Arrays
-  !-----------------------------
-  integer               Nudge_NumObs
-  integer,allocatable:: Nudge_ObsInd(:)
-  logical ,allocatable::Nudge_File_Present(:)
-  real(r8),allocatable::Nobs_U (:,:,:,:) !(pcols,pver,begchunk:endchunk,Nudge_NumObs)
-  real(r8),allocatable::Nobs_V (:,:,:,:) !(pcols,pver,begchunk:endchunk,Nudge_NumObs)
-  real(r8),allocatable::Nobs_T (:,:,:,:) !(pcols,pver,begchunk:endchunk,Nudge_NumObs)
-  real(r8),allocatable::Nobs_Q (:,:,:,:) !(pcols,pver,begchunk:endchunk,Nudge_NumObs)
-  real(r8),allocatable::Nobs_PS(:,:,:)   !(pcols,begchunk:endchunk,Nudge_NumObs)
+  ! replay observation arrays
+  real(r8),allocatable::Ufield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Vfield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Tfield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Qfield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
 
 contains
   !================================================================
-  subroutine nudging_readnl(nlfile)
+  subroutine replay_readnl(nlfile)
    ! 
    ! NUDGING_READNL: Initialize default values controlling the Nudging 
    !                 process. Then read namelist values to override 
@@ -517,9 +354,120 @@ contains
    ! End Routine
    !------------
    return
-  end subroutine ! nudging_readnl
+  end subroutine ! replay_readnl
   !================================================================
 
+  subroutine replay_register
+
+    use physics_buffer,     only: pbuf_add_field, dtype_r8
+    use rad_constituents,   only: rad_cnst_get_info
+    use crmdims,            only: crm_nx, crm_ny, crm_nz 
+    !---------------------------Local variables-----------------------------
+    !
+    logical :: use_spcam ! added for spcam
+    !-----------------------------------------------------------------------
+
+    call rad_cnst_get_info(0, nmodes=nmodes)
+    call phys_getopts( use_spcam_out = use_spcam)
+
+    ! add pbuf vars from cam.r. to buffer - sweidman
+    call pbuf_add_field('TEOUT_OLD', 'global', dtype_r8, (/pcols/), TEOUT_oldid) !(lat, lon) ; 
+    call pbuf_add_field('DTCORE_OLD', 'global', dtype_r8, (/pcols,pver/), DTCORE_oldid  ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CLDO_OLD', 'global', dtype_r8, (/pcols,pver/),  CLDO_oldid         ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('PRER_EVAP_OLD', 'global', dtype_r8, (/pcols,pver/),  PRER_EVAP_oldid    ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_T_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_T_oldid         ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_qv_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_qv_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_ql_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_ql_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_qi_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_qi_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_nl_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_nl_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_ni_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_ni_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CC_qlst_OLD', 'global', dtype_r8, (/pcols,pver/),  CC_qlst_oldid      ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('am_evp_st_OLD', 'global', dtype_r8, (/pcols,pver/),  am_evp_st_oldid    ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('evprain_st_OLD', 'global', dtype_r8, (/pcols,pver/),  evprain_st_oldid   ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('evpsnow_st_OLD', 'global', dtype_r8, (/pcols,pver/),  evpsnow_st_oldid   ) !(pbuf_00032, lat, lon)
+    call pbuf_add_field('ACPRECL_OLD', 'global', dtype_r8, (/pcols/), ACPRECL_oldid      ) !(lat, lon) ;
+    call pbuf_add_field('ACGCME_OLD', 'global', dtype_r8, (/pcols/), ACGCME_oldid       ) !(lat, lon) ;
+    call pbuf_add_field('ACNUM_OLD', 'global', dtype_r8, (/pcols/), ACNUM_oldid        ) !(lat, lon) ;
+    call pbuf_add_field('RELVAR_OLD', 'global', dtype_r8, (/pcols,pver/),  RELVAR_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ACCRE_ENHAN_OLD', 'global', dtype_r8, (/pcols,pver/),  ACCRE_ENHAN_oldid  ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('pblh_OLD', 'global', dtype_r8, (/pcols/), pblh_oldid         ) !(lat, lon) ;
+    call pbuf_add_field('tke_OLD', 'global', dtype_r8, (/pcols,pverp/),  tke_oldid          ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('kvh_OLD', 'global', dtype_r8, (/pcols,pverp/),  kvh_oldid          ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('tpert_OLD', 'global', dtype_r8, (/pcols/), tpert_oldid        ) !(lat, lon) ;
+    call pbuf_add_field('AST_OLD', 'global', dtype_r8, (/pcols,pver/),  AST_oldid          ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('AIST_OLD', 'global', dtype_r8, (/pcols,pver/),  AIST_oldid         ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ALST_OLD', 'global', dtype_r8, (/pcols,pver/),  ALST_oldid         ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('QIST_OLD', 'global', dtype_r8, (/pcols,pver/),  QIST_oldid         ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('QLST_OLD', 'global', dtype_r8, (/pcols,pver/),  QLST_oldid         ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CONCLD_OLD', 'global', dtype_r8, (/pcols,pver/),  CONCLD_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('CLD_OLD', 'global', dtype_r8, (/pcols,pver/),  CLD_oldid          ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('RAD_CLUBB_OLD', 'global', dtype_r8, (/pcols,pver/),  RAD_CLUBB_oldid    ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('WP2_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  WP2_nadv_oldid     ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('WP3_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  WP3_nadv_oldid     ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('WPTHLP_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  WPTHLP_nadv_oldid  ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('WPRTP_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  WPRTP_nadv_oldid   ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('RTPTHLP_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  RTPTHLP_nadv_oldid ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('RTP2_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  RTP2_nadv_oldid    ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('THLP2_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  THLP2_nadv_oldid   ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('UP2_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  UP2_nadv_oldid     ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('VP2_nadv_OLD', 'global', dtype_r8, (/pcols,pverp/),  VP2_nadv_oldid     ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('UPWP_OLD', 'global', dtype_r8, (/pcols,pverp/),  UPWP_oldid         ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('VPWP_OLD', 'global', dtype_r8, (/pcols,pverp/),  VPWP_oldid         ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('THLM_OLD', 'global', dtype_r8, (/pcols,pverp/),  THLM_oldid         ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('RTM_OLD', 'global', dtype_r8, (/pcols,pverp/),  RTM_oldid          ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('UM_OLD', 'global', dtype_r8, (/pcols,pverp/),  UM_oldid           ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('VM_OLD', 'global', dtype_r8, (/pcols,pverp/),  VM_oldid           ) !(pbuf_00033, lat, lon) ;
+    
+    call pbuf_add_field('DGNUM_OLD', 'global', dtype_r8, (/pcols,pverp,nmodes/),  DGNUM_oldid        ) !(pbuf_00128, lat, lon) ;
+    call pbuf_add_field('DGNUMWET_OLD', 'global', dtype_r8, (/pcols,pverp,nmodes/),  DGNUMWET_oldid     ) !(pbuf_00128, lat, lon) ;
+    call pbuf_add_field('num_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  num_c1_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('so4_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  so4_c1_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('pom_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  pom_c1_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('soa_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  soa_c1_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('bc_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  bc_c1_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('dst_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  dst_c1_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ncl_c1_OLD', 'global', dtype_r8, (/pcols,pver/),  ncl_c1_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('num_c2_OLD', 'global', dtype_r8, (/pcols,pver/),  num_c2_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('so4_c2_OLD', 'global', dtype_r8, (/pcols,pver/),  so4_c2_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('soa_c2_OLD', 'global', dtype_r8, (/pcols,pver/),  soa_c2_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ncl_c2_OLD', 'global', dtype_r8, (/pcols,pver/),  ncl_c2_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('dst_c2_OLD', 'global', dtype_r8, (/pcols,pver/),  dst_c2_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('num_c3_OLD', 'global', dtype_r8, (/pcols,pver/),  num_c3_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('dst_c3_OLD', 'global', dtype_r8, (/pcols,pver/),  dst_c3_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ncl_c3_OLD', 'global', dtype_r8, (/pcols,pver/),  ncl_c3_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('so4_c3_OLD', 'global', dtype_r8, (/pcols,pver/),  so4_c3_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('num_c4_OLD', 'global', dtype_r8, (/pcols,pver/),  num_c4_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('pom_c4_OLD', 'global', dtype_r8, (/pcols,pver/),  pom_c4_oldid       ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('bc_c4_OLD', 'global', dtype_r8, (/pcols,pver/),  bc_c4_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('DP_FLXPRC_OLD', 'global', dtype_r8, (/pcols,pverp/),  DP_FLXPRC_oldid    ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('DP_FLXSNW_OLD', 'global', dtype_r8, (/pcols,pverp/),  DP_FLXSNW_oldid    ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('DP_CLDLIQ_OLD', 'global', dtype_r8, (/pcols,pver/),  DP_CLDLIQ_oldid    ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('DP_CLDICE_OLD', 'global', dtype_r8, (/pcols,pver/),  DP_CLDICE_oldid    ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('cush_OLD', 'global', dtype_r8, (/pcols/), cush_oldid         ) !(lat, lon) ;
+    call pbuf_add_field('QRS_OLD', 'global', dtype_r8, (/pcols,pver/),  QRS_oldid          ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('QRL_OLD', 'global', dtype_r8, (/pcols,pver/),  QRL_oldid          ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ICIWP_OLD', 'global', dtype_r8, (/pcols,pver/),  ICIWP_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('ICLWP_OLD', 'global', dtype_r8, (/pcols,pver/),  ICLWP_oldid        ) !(pbuf_00032, lat, lon) ;
+    call pbuf_add_field('kvm_OLD', 'global', dtype_r8, (/pcols,pverp/),  kvm_oldid          ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('turbtype_OLD', 'global', dtype_r8, (/pcols,pverp/),  turbtype_oldid     ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('smaw_OLD', 'global', dtype_r8, (/pcols,pverp/),  smaw_oldid         ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('tauresx_OLD', 'global', dtype_r8, (/pcols/), tauresx_oldid      ) !(lat, lon) ;
+    call pbuf_add_field('tauresy_OLD', 'global', dtype_r8, (/pcols/), tauresy_oldid      ) !(lat, lon) ;
+    call pbuf_add_field('qpert_OLD', 'global', dtype_r8, (/pcols,pverp/),  qpert_oldid        ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('T_TTEND_OLD', 'global', dtype_r8, (/pcols,pver/),  T_TTEND_oldid      ) !(pbuf_00032, lat, lon) ;
+
+    if (use_SPCAM) then
+      call pbuf_add_field('CRM_U_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_u_oldid)
+      call pbuf_add_field('CRM_V_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_v_oldid)
+      call pbuf_add_field('CRM_W_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_w_oldid)
+      call pbuf_add_field('CRM_T_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_t_oldid)
+      call pbuf_add_field('CRM_QRAD_OLD', 'global',  dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_qrad_oldid)
+      call pbuf_add_field('CRM_QT_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qt_oldid)
+      call pbuf_add_field('CRM_QP_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qp_oldid)
+      call pbuf_add_field('CRM_QN_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qn_oldid)
+    end if
+
+  end subroutine 
 
   !================================================================
   subroutine nudging_init
@@ -865,24 +813,7 @@ contains
    call mpibcast(Nudge_File_Present  , Nudge_NumObs, mpilog, 0, mpicom)
 #endif
 
-   ! Allocate Space for Nudging observation arrays, initialize with 0's
-   !---------------------------------------------------------------------
-   allocate(Nobs_U(pcols,pver,begchunk:endchunk,Nudge_NumObs),stat=istat)
-   call alloc_err(istat,'nudging_init','Nobs_U',pcols*pver*((endchunk-begchunk)+1)*Nudge_NumObs)
-   allocate(Nobs_V(pcols,pver,begchunk:endchunk,Nudge_NumObs),stat=istat)
-   call alloc_err(istat,'nudging_init','Nobs_V',pcols*pver*((endchunk-begchunk)+1)*Nudge_NumObs)
-   allocate(Nobs_T(pcols,pver,begchunk:endchunk,Nudge_NumObs),stat=istat)
-   call alloc_err(istat,'nudging_init','Nobs_T',pcols*pver*((endchunk-begchunk)+1)*Nudge_NumObs)
-   allocate(Nobs_Q(pcols,pver,begchunk:endchunk,Nudge_NumObs),stat=istat)
-   call alloc_err(istat,'nudging_init','Nobs_Q',pcols*pver*((endchunk-begchunk)+1)*Nudge_NumObs)
-   allocate(Nobs_PS(pcols,begchunk:endchunk,Nudge_NumObs),stat=istat)
-   call alloc_err(istat,'nudging_init','Nobs_PS',pcols*((endchunk-begchunk)+1)*Nudge_NumObs)
 
-   Nobs_U(:pcols,:pver,begchunk:endchunk,:Nudge_NumObs)=0._r8
-   Nobs_V(:pcols,:pver,begchunk:endchunk,:Nudge_NumObs)=0._r8
-   Nobs_T(:pcols,:pver,begchunk:endchunk,:Nudge_NumObs)=0._r8
-   Nobs_Q(:pcols,:pver,begchunk:endchunk,:Nudge_NumObs)=0._r8
-   Nobs_PS(:pcols     ,begchunk:endchunk,:Nudge_NumObs)=0._r8
 
 !!DIAG
    if(masterproc) then
@@ -908,60 +839,7 @@ contains
     write(iulog,*) 'NUDGING: Reading analyses:',trim(Nudge_Path)//trim(Nudge_File)
    endif
 
-   ! Rotate Nudge_ObsInd() indices for new data, then update 
-   ! the Nudge observation arrays with analysis data at the 
-   ! NEXT==Nudge_ObsInd(1) time.
-   !----------------------------------------------------------
-   if(dycore_is('UNSTRUCTURED')) then
-     call nudging_update_analyses_se (trim(Nudge_Path)//trim(Nudge_File))
-   elseif(dycore_is('EUL')) then
-     call nudging_update_analyses_eul(trim(Nudge_Path)//trim(Nudge_File))
-   else !if(dycore_is('LR')) then
-     call nudging_update_analyses_fv (trim(Nudge_Path)//trim(Nudge_File))
-   endif
 
-   ! Initialize Nudging Coeffcient profiles in local arrays
-   ! Load zeros into nudging arrays
-   !------------------------------------------------------
-   do lchnk=begchunk,endchunk
-     ncol=get_ncols_p(lchnk)
-     do icol=1,ncol
-       rlat=get_rlat_p(lchnk,icol)*180._r8/SHR_CONST_PI
-       rlon=get_rlon_p(lchnk,icol)*180._r8/SHR_CONST_PI
-
-       call nudging_set_profile(rlat,rlon,Nudge_Uprof,Wprof,pver)
-       Nudge_Utau(icol,:,lchnk)=Wprof(:)
-       call nudging_set_profile(rlat,rlon,Nudge_Vprof,Wprof,pver)
-       Nudge_Vtau(icol,:,lchnk)=Wprof(:)
-       call nudging_set_profile(rlat,rlon,Nudge_Tprof,Wprof,pver)
-       Nudge_Stau(icol,:,lchnk)=Wprof(:)
-       call nudging_set_profile(rlat,rlon,Nudge_Qprof,Wprof,pver)
-       Nudge_Qtau(icol,:,lchnk)=Wprof(:)
-
-       Nudge_PStau(icol,lchnk)=nudging_set_PSprofile(rlat,rlon,Nudge_PSprof)
-     end do
-     Nudge_Utau(:ncol,:pver,lchnk) =                             &
-     Nudge_Utau(:ncol,:pver,lchnk) * Nudge_Ucoef/float(Nudge_Step)
-     Nudge_Vtau(:ncol,:pver,lchnk) =                             &
-     Nudge_Vtau(:ncol,:pver,lchnk) * Nudge_Vcoef/float(Nudge_Step)
-     Nudge_Stau(:ncol,:pver,lchnk) =                             &
-     Nudge_Stau(:ncol,:pver,lchnk) * Nudge_Tcoef/float(Nudge_Step)
-     Nudge_Qtau(:ncol,:pver,lchnk) =                             &
-     Nudge_Qtau(:ncol,:pver,lchnk) * Nudge_Qcoef/float(Nudge_Step)
-     Nudge_PStau(:ncol,lchnk)=                             &
-     Nudge_PStau(:ncol,lchnk)* Nudge_PScoef/float(Nudge_Step)
-
-     Nudge_Ustep(:pcols,:pver,lchnk)=0._r8
-     Nudge_Vstep(:pcols,:pver,lchnk)=0._r8
-     Nudge_Sstep(:pcols,:pver,lchnk)=0._r8
-     Nudge_Qstep(:pcols,:pver,lchnk)=0._r8
-     Nudge_PSstep(:pcols,lchnk)=0._r8
-     Target_U(:pcols,:pver,lchnk)=0._r8
-     Target_V(:pcols,:pver,lchnk)=0._r8
-     Target_T(:pcols,:pver,lchnk)=0._r8
-     Target_S(:pcols,:pver,lchnk)=0._r8
-     Target_Q(:pcols,:pver,lchnk)=0._r8
-     Target_PS(:pcols,lchnk)=0._r8
    end do
 
    ! End Routine
@@ -1187,7 +1065,6 @@ contains
         use time_manager, only: get_nstep, get_curr_date
         use geopotential, only: geopotential_dse
         use physconst,    only: zvir, gravit, cpairv, rair,cpair
-        use phys_control, only: phys_getopts
         use cam_pio_utils,    only: cam_pio_openfile, cam_pio_get_decomp ! sweid - replace with cam_pio_get_decomp ?
         use cam_grid_support,   only: cam_grid_get_decomp, cam_grid_id, cam_grid_dimensions ! trying this? - sweid
         use pio,          only: pio_write_darray, pio_read_darray, file_desc_t, var_desc_t, io_desc_t, pio_offset, pio_setframe, pio_double, pio_write, pio_nowrite, pio_inq_varid, pio_def_var, pio_closefile
@@ -1196,7 +1073,7 @@ contains
         use cam_history,    only: addfld, outfld
         use shr_mem_mod,       only: shr_mem_init, shr_mem_getusage
         use pmgrid,          only: plon, plat
-        use constituents,     only: cnst_get_ind
+        use constituents,     only: cnst_get_ind, pcnst
         use check_energy,    only: check_energy_chng
         use error_messages, only: alloc_err 
     
@@ -1211,54 +1088,50 @@ contains
        real(r8) :: vforcing(pcols,begchunk:endchunk,pver)
        real(r8) :: sforcing(pcols,begchunk:endchunk,pver)
     
-     
        integer, save :: nstep_count
     
-    
-    !      use cam_control_mod, only: sst_option
     ! Arguments
-          type(physics_state), intent(inout) :: state(begchunk:endchunk)
-          type(physics_tend), intent(inout) :: tend(begchunk:endchunk)
-          real(r8) , intent(in) :: ztodt
+        type(physics_state), intent(inout) :: state(begchunk:endchunk)
+        type(physics_tend), intent(inout) :: tend(begchunk:endchunk)
+        real(r8) , intent(in) :: ztodt
     ! Local workspace
-          type(physics_ptend)   :: ptend                  ! indivdualparameterization tendencies
-          real(r8) ::     arrq(pcols,begchunk:endchunk,pver),arrt(pcols,begchunk:endchunk,pver),arru(pcols,begchunk:endchunk,pver),arrv(pcols,begchunk:endchunk,pver)       ! Input array,chunked
-          real(r8) :: zmean                        ! temporary zonal mean value
-          integer :: i, j, qconst, ifld,n ,ilat,ilon,istat                 ! longitude, latitude,field, and global column indices
-          integer :: hdim1, hdim2, c, ncols, k, istep, modstep
-          integer :: hdim1_d, hdim2_d, Replay_nlon, Replay_nlat
-          real(r8) ::rlat(pcols),damping_coef,wrk,forcingtime,dampingtime!,tmprand(128,64)
-          real :: tmp_zero
-          real(r8) :: zero(pcols)                    ! array of zeros
-          integer :: ilat_all(pcols)
-          integer :: ndays, day, mon, yr, ncsec
-          integer :: modstep6hr, modstep3hr
-          logical :: fileexists
-          logical,save :: corrector_step, started   
+        type(physics_ptend)   :: ptend                  ! indivdualparameterization tendencies
+        real(r8) ::     arrq(pcols,begchunk:endchunk,pver),arrt(pcols,begchunk:endchunk,pver),arru(pcols,begchunk:endchunk,pver),arrv(pcols,begchunk:endchunk,pver)       ! Input array,chunked
+        real(r8) :: zmean                        ! temporary zonal mean value
+        integer :: i, j, qconst, ifld,n ,ilat,ilon,istat                 ! longitude, latitude,field, and global column indices
+        integer :: hdim1, hdim2, c, ncols, k, istep, modstep
+        integer :: hdim1_d, hdim2_d, Replay_nlon, Replay_nlat
+        real(r8) ::rlat(pcols),damping_coef,wrk,forcingtime,dampingtime!,tmprand(128,64)
+        real :: tmp_zero
+        real(r8) :: zero(pcols)                    ! array of zeros
+        integer :: ilat_all(pcols)
+        integer :: ndays, day, mon, yr, ncsec
+        integer :: modstep6hr, modstep3hr
+        logical :: fileexists
+        logical,save :: corrector_step, started   
     !----- 
- 
-          integer :: ierr,csize,indw                          !!Added  
+        integer :: ierr,csize,indw                          !!Added  
         integer jerr
         character(len=256) :: ncdata_loc,filen,ncwrite_loc,outn
-    integer :: dims2d(2)
-    integer :: resul,lchnk
-         real(r8), pointer :: londeg(:,:)
-         type(file_desc_t) :: File
+        integer :: dims2d(2)
+        integer :: resul,lchnk
+        real(r8), pointer :: londeg(:,:)
+        type(file_desc_t) :: File
     
        !---------------------------flamraoui 2------------------------------
       ! variable for reading netcdf 
         character(len=256)        :: fileName
     
-    integer, dimension(11) :: monarray
+        integer, dimension(11) :: monarray
     
-    real(r8), allocatable :: tmpfield(:)
-         type(io_desc_t), pointer :: iodesc
-         integer                  :: dims(3), gdims(3), nhdims ! added - sweid
-         integer                  :: physgrid ! added - sweid
-         type(var_desc_t) :: vardesc
-    real(r8) :: msize,mrss
+        real(r8), allocatable :: tmpfield(:)
+        type(io_desc_t), pointer :: iodesc
+        integer                  :: dims(3), gdims(3), nhdims ! added - sweid
+        integer                  :: physgrid ! added - sweid
+        type(var_desc_t) :: vardesc
+        real(r8) :: msize,mrss
  
-    logical  :: lq(pcnst)
+        logical  :: lq(pcnst)
     
       !---------------------------flamraoui------------------------------
       
