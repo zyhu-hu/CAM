@@ -379,7 +379,9 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
    use filenames        , only: interpret_filename_spec ! added
    use rad_constituents,   only: rad_cnst_get_info ! added
    use phys_control,       only: phys_getopts ! added
+#ifdef CRM
    use crmdims,            only: crm_nx, crm_ny, crm_nz ! added
+#endif
 
    !type(cam_out_t), intent(inout)        :: cam_out(begchunk:endchunk)
    !type(cam_in_t) , intent(inout)        :: cam_in(begchunk:endchunk)
@@ -1286,6 +1288,7 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
       tauresx_old(i) = tauresx(i)
       tauresy_old(i) = tauresy(i)
       if (use_SPCAM) then
+#ifdef CRM
          do nz = 1,crm_nz
             do nx = 1,crm_nx
                do ny = 1,crm_ny
@@ -1300,6 +1303,7 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
                end do ! ny
             end do ! nx
          end do ! nz
+#endif
       else
          cush_old(i) = cush(i)
          ACPRECL_old(i) = ACPRECL(i)
@@ -1802,6 +1806,7 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
       tauresx(i) = tauresx_old(i)
       tauresy(i) = tauresy_old(i)
       if (use_SPCAM) then
+#ifdef CRM
          do nz = 1,crm_nz
             do nx = 1,crm_nx
                do ny = 1,crm_ny
@@ -1816,6 +1821,7 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
                end do ! ny
             end do ! nx
          end do ! nz
+#endif
       else
          ACPRECL(i) = ACPRECL_old(i)
          ACGCME(i) = ACGCME_old(i)
