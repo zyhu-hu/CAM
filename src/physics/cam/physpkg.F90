@@ -58,6 +58,7 @@ module physpkg
   logical           :: state_debug_checks  ! Debug physics_state.
   logical           :: clim_modal_aero     ! climate controled by prognostic or prescribed modal aerosols
   logical           :: prog_modal_aero     ! Prognostic modal aerosols present
+  logical           :: use_SPCAM
 
   !  Physics buffer index
   integer ::  teout_idx          = 0
@@ -165,6 +166,14 @@ module physpkg
   integer ::  tauresy_oldid      = 0 !(lat, lon) ;
   integer ::  qpert_oldid        = 0 !(pbuf_00033, lat, lon) ;
   integer ::  T_TTEND_oldid      = 0 !(pbuf_00032, lat, lon) ;
+  integer ::  crm_u_oldid        = 0
+  integer ::  crm_v_oldid        = 0 
+  integer ::  crm_w_oldid        = 0 
+  integer ::  crm_t_oldid        = 0 
+  integer ::  crm_qrad_oldid      = 0
+  integer ::  crm_qt_oldid        = 0 
+  integer ::  crm_qp_oldid        = 0 
+  integer ::  crm_qn_oldid        = 0   
 
   ! replay observation arrays
   real(r8),allocatable::Ufield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
@@ -237,6 +246,9 @@ contains
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
     use upper_bc,           only: ubc_fixed_conc
+#ifdef CRM
+    use crmdims,            only: crm_nx, crm_ny, crm_nz
+#endif
 
     !---------------------------Local variables-----------------------------
     !
@@ -253,7 +265,8 @@ contains
                       cld_macmic_num_steps_out = cld_macmic_num_steps, &
                       do_clubb_sgs_out         = do_clubb_sgs,     &
                       use_subcol_microp_out    = use_subcol_microp, &
-                      state_debug_checks_out   = state_debug_checks)
+                      state_debug_checks_out   = state_debug_checks, &
+                      use_spcam_out            = use_SPCAM)
 
     ! Initialize dyn_time_lvls
     call pbuf_init_time()
@@ -283,7 +296,7 @@ contains
     call pbuf_add_field('CLDLIQINI', 'physpkg', dtype_r8, (/pcols,pver/), cldliqini_idx)
     call pbuf_add_field('CLDICEINI', 'physpkg', dtype_r8, (/pcols,pver/), cldiceini_idx)
 
-    print*,'pvers',pver,pverp ! add pbuf vars from cam.r. to buffer - sweidman
+    ! add pbuf vars from cam.r. to buffer - sweidman
     call pbuf_add_field('TEOUT_OLD', 'global', dtype_r8, (/pcols/), TEOUT_oldid) !(lat, lon) ; 
     call pbuf_add_field('DTCORE_OLD', 'global', dtype_r8, (/pcols,pver/), DTCORE_oldid  ) !(pbuf_00032, lat, lon) ;
     call pbuf_add_field('CLDO_OLD', 'global', dtype_r8, (/pcols,pver/),  CLDO_oldid         ) !(pbuf_00032, lat, lon) ;
@@ -367,7 +380,20 @@ contains
   call pbuf_add_field('tauresx_OLD', 'global', dtype_r8, (/pcols/), tauresx_oldid      ) !(lat, lon) ;
   call pbuf_add_field('tauresy_OLD', 'global', dtype_r8, (/pcols/), tauresy_oldid      ) !(lat, lon) ;
   call pbuf_add_field('qpert_OLD', 'global', dtype_r8, (/pcols,pverp/),  qpert_oldid        ) !(pbuf_00033, lat, lon) ;
-  call pbuf_add_field('T_TTEND_OLD', 'global', dtype_r8, (/pcols,pver/),  T_TTEND_oldid      ) !(pbuf_00032, lat, lon) ; 
+  call pbuf_add_field('T_TTEND_OLD', 'global', dtype_r8, (/pcols,pver/),  T_TTEND_oldid      ) !(pbuf_00032, lat, lon) ;
+  
+  if (use_SPCAM) then
+!#ifdef CRM
+      call pbuf_add_field('CRM_U_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_u_oldid)
+      call pbuf_add_field('CRM_V_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_v_oldid)
+      call pbuf_add_field('CRM_W_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_w_oldid)
+      call pbuf_add_field('CRM_T_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_t_oldid)
+      call pbuf_add_field('CRM_QRAD_OLD', 'global',  dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_qrad_oldid)
+      call pbuf_add_field('CRM_QT_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qt_oldid)
+      call pbuf_add_field('CRM_QP_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qp_oldid)
+      call pbuf_add_field('CRM_QN_OLD', 'global',  dtype_r8, (/pcols, crm_nx, crm_ny, crm_nz/), crm_qn_oldid)
+!#endif
+   end if ! SPCAM
 
     ! check energy package
     call check_energy_register
