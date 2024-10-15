@@ -59,6 +59,7 @@ module physpkg
   logical           :: state_debug_checks  ! Debug physics_state.
   logical           :: clim_modal_aero     ! climate controled by prognostic or prescribed modal aerosols
   logical           :: prog_modal_aero     ! Prognostic modal aerosols present
+  logical           :: use_SPCAM
 
   !  Physics buffer index
   integer ::  teout_idx          = 0
@@ -149,6 +150,9 @@ contains
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
     use upper_bc,           only: ubc_fixed_conc
+#ifdef CRM
+    use crmdims,            only: crm_nx, crm_ny, crm_nz
+#endif
 
     !---------------------------Local variables-----------------------------
     !
@@ -165,7 +169,8 @@ contains
                       cld_macmic_num_steps_out = cld_macmic_num_steps, &
                       do_clubb_sgs_out         = do_clubb_sgs,     &
                       use_subcol_microp_out    = use_subcol_microp, &
-                      state_debug_checks_out   = state_debug_checks)
+                      state_debug_checks_out   = state_debug_checks, &
+                      use_spcam_out            = use_SPCAM)
 
     ! Initialize dyn_time_lvls
     call pbuf_init_time()
