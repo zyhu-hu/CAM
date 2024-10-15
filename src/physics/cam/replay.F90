@@ -325,6 +325,7 @@ endif
 
     if (use_SPCAM) then
 #ifdef CRM
+  if(masterproc) write(iulog,*) 'registering CRM buffer vars'
       call pbuf_add_field('CRM_U_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_u_oldid)
       call pbuf_add_field('CRM_V_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_v_oldid)
       call pbuf_add_field('CRM_W_OLD', 'global', dtype_r8, (/pcols,crm_nx, crm_ny, crm_nz/), crm_w_oldid)
