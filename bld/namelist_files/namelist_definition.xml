@@ -373,6 +373,13 @@
        Default: none
        </entry>
 
+<entry id="Replay_coef" type="real" category="replay"
+       group="replay_nl" valid_values="" >
+       Coeffcient for replay -- usually 1 (full forcing) or 0 (no forcing)
+         [0.,1.] fraction of nudging tendency applied.
+       Default: 1.
+       </entry>
+
 
 <!-- Aerosols: Data (CAM version) -->
 

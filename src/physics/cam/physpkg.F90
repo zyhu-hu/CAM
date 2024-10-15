@@ -31,7 +31,7 @@ module physpkg
   use perf_mod
   use cam_logfile,     only: iulog
   use camsrfexch,      only: cam_export
-  use replay,          only: replay_register, replay_correction
+  use replay,          only: replay_register, replay_correction, Replay_Model
 
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
@@ -1155,11 +1155,11 @@ contains
     call t_adj_detailf(+1)
 
 !$OMP PARALLEL DO PRIVATE (C, NCOL, phys_buffer_chunk)
+    if (Replay_Model) then
+      if (masterproc) write(iulog,*) 'About to call replay_correction.'
+      call replay_correction(phys_state,phys_tend,ztodt) ! call replay function - sweidman
+    endif
 
-    if (masterproc) write(iulog,*) 'About to call replay_correction.'
-    call replay_correction(phys_state,phys_tend,ztodt) ! call replay function - sweidman
-    if (masterproc) write(iulog,*) 'Finished replay_correction'
-    
     do c=begchunk,endchunk
        ncol = get_ncols_p(c)
        phys_buffer_chunk => pbuf_get_chunk(pbuf2d, c)

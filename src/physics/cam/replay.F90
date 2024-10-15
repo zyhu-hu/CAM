@@ -43,6 +43,7 @@ module replay
   character(len=cl):: Replay_Path
   character(len=cs):: Replay_File_Template
   integer          :: Replay_Beg_Year
+  real(r8)         :: Replay_coef
 
   ! replay observation arrays
   real(r8),allocatable::Ufield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
@@ -70,7 +71,8 @@ contains
    integer ierr,unitn
 
    namelist /replay_nl/ Replay_Model,Replay_Path,                       &
-                         Replay_File_Template, Replay_Beg_Year 
+                         Replay_File_Template, Replay_Beg_Year,         &
+                         Replay_coef 
                          
 
 
@@ -80,6 +82,7 @@ contains
    Replay_Path          = '/n/holylfs04/LABS/kuang_lab/Lab/sweidman/MERRA2_OG/MERRA2_f19/'
    Replay_File_Template = 'MERRA2_%y%m%d_%h.nc'
    Replay_Beg_Year      = 1980
+   Replay_coef          = 1._r8
 
    ! Read in namelist values
    !------------------------
@@ -104,7 +107,20 @@ contains
    call mpibcast(Replay_File_Template,len(Replay_File_Template),mpichar,0,mpicom)
    call mpibcast(Replay_Model        , 1, mpilog, 0, mpicom)
    call mpibcast(Replay_Beg_Year     , 1, mpiint, 0, mpicom)
+   call mpibcast(Replay_coef         , 1, mpir8 , 0, mpicom)
 #endif
+
+if(masterproc) then
+  write(iulog,*) ' '
+  write(iulog,*) '---------------------------------------------------------'
+  write(iulog,*) '  MODEL REPLAY INITIALIZED WITH THE FOLLOWING SETTINGS: '
+  write(iulog,*) '---------------------------------------------------------'
+  write(iulog,*) 'REPLAY: Replay_Model=',Replay_Model
+  write(iulog,*) 'REPLAY: Replay_Path=',Replay_Path
+  write(iulog,*) 'REPLAY: Replay_File_Template =',Replay_File_Template
+  write(iulog,*) 'REPLAY: Replay_Beg_Year =',Replay_Beg_Year
+  write(iulog,*) 'REPLAY: Replay_coef  =',Replay_coef
+endif
 
    ! End Routine
    !------------
@@ -533,7 +549,7 @@ contains
 !================================================================
 
    character(len=cl) function interpret_filename_replay( filename_spec, case, &
-   yr_spec, mon_spec, day_spec, hr_spec )
+   yr_spec, mon_spec, day_spec, hr_spec, sec_spec )
 
 ! Create a filename from a filename specifier. The 
 ! filename specifyer includes codes for setting things such as the
@@ -558,11 +574,13 @@ contains
    integer         , intent(in), optional :: mon_spec        ! Simulation month
    integer         , intent(in), optional :: day_spec        ! Simulation day
    integer         , intent(in), optional :: hr_spec         ! Modstep from replay correction
+   integer         , intent(in), optional :: sec_spec        ! Simulation seconds of day
 
    ! Local variables
    integer :: year  ! Simulation year
    integer :: month ! Simulation month
    integer :: day   ! Simulation day
+   integer :: ncsec   ! Seconds into current simulation day
    integer :: modstep ! modstep into current simulation day
    character(len=cl) :: string    ! Temporary character string 
    character(len=cl) :: format    ! Format character string 
@@ -580,11 +598,12 @@ contains
    !
    ! Determine year, month, day and sec to put in filename
    !
-   if (present(yr_spec) .and. present(mon_spec) .and. present(day_spec) .and. present(hr_spec)) then
+   if (present(yr_spec) .and. present(mon_spec) .and. present(day_spec) .and. present(hr_spec) .and. present(sec_spec)) then
       year  = yr_spec
       month = mon_spec
       day   = day_spec
       modstep = hr_spec
+      ncsec = sec_spec
    end if
    !
    ! Go through each character in the filename specifyer and interpret if special string
@@ -611,8 +630,10 @@ contains
             write(string,'(i2.2)') month
          case( 'd' )   ! day
             write(string,'(i2.2)') day
-         case( 'h' )   ! second
+         case( 'h' )   ! 3-hour period
             write(string,'(i1.1)') modstep
+         case( 's' )   ! second
+            write(string,'(i5.5)') ncsec
          case( '%' )   ! percent character
             string = "%"
          case default
@@ -775,9 +796,6 @@ end function interpret_filename_replay
     
  
         call get_horiz_grid_dim_d(hdim1, hdim2)
-        if (masterproc) then
-          write(iulog,*) "horiz_grid hdim1, hdim2", hdim1, hdim2
-        endif 
     
     
     modstep=int((mod(istep+6, 48)) / 6)
@@ -787,12 +805,15 @@ end function interpret_filename_replay
     fileexists=.FALSE.
     
     do while (.NOT. fileexists )
+
+      if (masterproc) write(iulog,*) "modstep, ncsec", modstep, ncsec
     
     filename=interpret_filename_replay(Replay_File_Template      , &
         yr_spec=yr , &
         mon_spec=mon, &
         day_spec=day  , &
-        hr_spec=modstep    )
+        hr_spec=modstep, &
+        sec_spec=ncsec    )
 
     if(masterproc) then
       write(iulog,*) trim(Replay_Path)//trim(filename)
@@ -879,10 +900,10 @@ end function interpret_filename_replay
     do i = 1, ncols
     do k=1,pver   
     
-        ptend%q(i,k,indw) = ptend%q(i,k,indw) + state(c)%qforce(i,k)/forcingtime 
-        ptend%u(i,k) = ptend%u(i,k) + state(c)%uforce(i,k)/forcingtime
-        ptend%v(i,k) = ptend%v(i,k) + state(c)%vforce(i,k)/forcingtime
-        ptend%s(i,k) = ptend%s(i,k) + state(c)%sforce(i,k)/forcingtime
+        ptend%q(i,k,indw) = ptend%q(i,k,indw) + state(c)%qforce(i,k)/forcingtime*Replay_coef 
+        ptend%u(i,k) = ptend%u(i,k) + state(c)%uforce(i,k)/forcingtime*Replay_coef 
+        ptend%v(i,k) = ptend%v(i,k) + state(c)%vforce(i,k)/forcingtime*Replay_coef 
+        ptend%s(i,k) = ptend%s(i,k) + state(c)%sforce(i,k)/forcingtime*Replay_coef 
     
     !
     end do
