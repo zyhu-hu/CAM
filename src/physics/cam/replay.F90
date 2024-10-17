@@ -675,7 +675,7 @@ end function interpret_filename_replay
         use physics_buffer, only : pbuf_get_index, pbuf_get_field,physics_buffer_desc, pbuf_set_field, pbuf_add_field, dtype_r8, pbuf_get_index, pbuf_old_tim_idx
         use phys_grid,    only:  gather_chunk_to_field, scatter_field_to_chunk
         use dyn_grid,     only: get_horiz_grid_dim_d
-        use time_manager, only: get_nstep, get_curr_date
+        use time_manager, only: get_nstep, get_curr_date, get_start_date
         use geopotential, only: geopotential_dse
         use physconst,    only: zvir, gravit, cpairv, rair,cpair
         use cam_pio_utils,    only: cam_pio_openfile, cam_pio_get_decomp ! sweid - replace with cam_pio_get_decomp ?
@@ -719,6 +719,7 @@ end function interpret_filename_replay
         real(r8) :: zero(pcols)                    ! array of zeros
         integer :: ilat_all(pcols)
         integer :: ndays, day, mon, yr, ncsec
+        integer :: yr_start, mon_start, day_start, tod_start
         integer :: modstep6hr, modstep3hr
         logical :: fileexists
         logical,save :: corrector_step, started   
@@ -782,8 +783,9 @@ end function interpret_filename_replay
     !------------------------------------------------     
     
     call get_curr_date(yr, mon, day, ncsec)
+    call get_start_date(yr_start, mon_start, day_start, tod_start)
     
-    yr=max(Replay_Beg_Year,1980)
+    yr = yr + (Replay_Beg_Year - yr_start)
     
     if (masterproc) then
        write(iulog,*)  'iyear = ', yr
@@ -803,42 +805,7 @@ end function interpret_filename_replay
     modstep6hr=  (mod(istep, 12)) 
     modstep3hr=  (mod(istep, 6)) 
     
-    fileexists=.FALSE.
     
-    do while (.NOT. fileexists )
-
-      if (masterproc) write(iulog,*) "modstep, ncsec", modstep, ncsec
-    
-    filename=interpret_filename_replay(Replay_File_Template      , &
-        yr_spec=yr , &
-        mon_spec=mon, &
-        day_spec=day  , &
-        hr_spec=modstep, &
-        sec_spec=ncsec    )
-
-    if(masterproc) then
-      write(iulog,*) trim(Replay_Path)//trim(filename)
-    endif
-    
-    INQUIRE(FILE=trim(Replay_Path)//trim(filename), EXIST=fileexists)
-    
-    if (.not. fileexists) print*, 'file missing', filename
-    
-    day=day-1
-    if (day==0) then
-    day=31
-    mon=mon-1
-    if (mon==0) then
-    mon=12
-    yr=yr-1
-    end if
-    end if
-    
-    end do
-   
-    !-------------------------------------------------------------------------------------
-    if (masterproc) write(iulog,*) "Reanalysis filename = ", trim(Replay_Path)//trim(filename)   ! print filename used 
-    !-----------------------------finish calling filename--------------------------------------  
     
       !------------------------------------------
        
@@ -927,12 +894,44 @@ end function interpret_filename_replay
     ! e) reset clock and restart states (not here)
     
         if  (modstep6hr==5 .AND. .NOT. corrector_step ) then
+
+          fileexists=.FALSE.
     
- 
-          if(masterproc) then
-             print *, 'replay: Reading analyses:',trim(Replay_Path)//trim(filename)
-             !write(iulog,*) 'replay: Reading analyses:',trim(filename)
-          endif
+    do while (.NOT. fileexists )
+
+      if (masterproc) write(iulog,*) "modstep, ncsec + 1800", modstep, ncsec+1800
+    
+      filename=interpret_filename_replay(Replay_File_Template      , &
+          yr_spec=yr , &
+          mon_spec=mon, &
+          day_spec=day  , &
+          hr_spec=modstep, &
+          sec_spec=ncsec+1800    )
+
+      if(masterproc) then
+        write(iulog,*) trim(Replay_Path)//trim(filename)
+      endif
+      
+      INQUIRE(FILE=trim(Replay_Path)//trim(filename), EXIST=fileexists)
+      
+      if (.not. fileexists) print*, 'file missing', filename
+      
+      day=day-1
+      if (day==0) then
+      day=31
+      mon=mon-1
+      if (mon==0) then
+      mon=12
+      yr=yr-1
+      end if
+      end if
+      
+    end do ! checking if file exists
+   
+    !-------------------------------------------------------------------------------------
+    if (masterproc) write(iulog,*) "Reanalysis filename = ", trim(Replay_Path)//trim(filename)   ! print filename used 
+    !-----------------------------finish calling filename--------------------------------------  
+    
          
           call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
           Replay_nlon=hdim1_d
