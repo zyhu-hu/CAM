@@ -379,6 +379,7 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
    use filenames        , only: interpret_filename_spec ! added
    use rad_constituents,   only: rad_cnst_get_info ! added
    use phys_control,       only: phys_getopts ! added
+   use constituents,     only : pcnst
 #ifdef CRM
    use crmdims,            only: crm_nx, crm_ny, crm_nz ! added
 #endif
@@ -1260,7 +1261,6 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
          kvm_old(i,k) = kvm(i,k)
          turbtype_old(i,k) = turbtype(i,k)
          smaw_old(i,k) = smaw(i,k)
-         qpert_old(i,k) = qpert(i,k)
          if ( .not. use_SPCAM) then
             WP2_nadv_old(i,k) = WP2_nadv(i,k)
             WP3_nadv_old(i,k) = WP3_nadv(i,k)
@@ -1281,6 +1281,9 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
             DP_FLXSNW_old(i,k) = DP_FLXSNW(i,k)
          end if
       end do ! k=1,pverp
+      do k=1,pcnst
+         qpert_old(i,k) = qpert(i,k)
+      end do 
       
       TEOUT_old(i) = TEOUT(i)
       pblh_old(i) = pblh(i)
@@ -1778,7 +1781,6 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
          kvm(i,k) = kvm_old(i,k)
          turbtype(i,k) = turbtype_old(i,k)
          smaw(i,k) = smaw_old(i,k)
-         qpert(i,k) = qpert_old(i,k)
          if ( .not. use_SPCAM) then
             WP2_nadv(i,k) = WP2_nadv_old(i,k)
             WP3_nadv(i,k) = WP3_nadv_old(i,k)
@@ -1799,6 +1801,9 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
             DP_FLXSNW(i,k) = DP_FLXSNW_old(i,k)
          end if
       end do ! k=1,pverp
+      do k=1,pcnst
+         qpert(i,k) = qpert_old(i,k)
+      end do 
 
       TEOUT(i) = TEOUT_old(i)
       pblh(i) = pblh_old(i)

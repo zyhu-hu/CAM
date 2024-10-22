@@ -132,6 +132,7 @@ endif
 
     use physics_buffer,     only: pbuf_add_field, dtype_r8
     use rad_constituents,   only: rad_cnst_get_info
+    use constituents,     only : pcnst
 #ifdef CRM
     use crmdims,            only: crm_nx, crm_ny, crm_nz 
 #endif
@@ -320,7 +321,7 @@ endif
     call pbuf_add_field('smaw_OLD', 'global', dtype_r8, (/pcols,pverp/),  smaw_oldid         ) !(pbuf_00033, lat, lon) ;
     call pbuf_add_field('tauresx_OLD', 'global', dtype_r8, (/pcols/), tauresx_oldid      ) !(lat, lon) ;
     call pbuf_add_field('tauresy_OLD', 'global', dtype_r8, (/pcols/), tauresy_oldid      ) !(lat, lon) ;
-    call pbuf_add_field('qpert_OLD', 'global', dtype_r8, (/pcols,pverp/),  qpert_oldid        ) !(pbuf_00033, lat, lon) ;
+    call pbuf_add_field('qpert_OLD', 'global', dtype_r8, (/pcols,pcnst/), qpert_oldid) !(pbuf_00033, lat, lon) ;
     call pbuf_add_field('T_TTEND_OLD', 'global', dtype_r8, (/pcols,pver/),  T_TTEND_oldid      ) !(pbuf_00032, lat, lon) ;
 
     if (use_SPCAM) then
