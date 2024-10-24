@@ -72,6 +72,10 @@ module physics_types
           u,       &! zonal wind (m/s)
           v,       &! meridional wind (m/s)
           s,       &! dry static energy
+          sforce,  &! static energy difference ! defining replay forcings - sweidman
+          uforce,  &! zonal wind difference
+          vforce,  &! meridional wind difference
+          qforce,  &! first moment moisture difference ! done add
           omega,   &! vertical pressure velocity (Pa/s)
           pmid,    &! midpoint pressure (Pa)
           pmiddry, &! midpoint pressure dry (Pa)
@@ -1549,6 +1553,18 @@ subroutine physics_state_alloc(state,lchnk,psetcols)
   allocate(state%s(psetcols,pver), stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%s')
 
+  allocate(state%sforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%sforce') ! replay, added sweid
+  
+  allocate(state%uforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%uforce')
+
+  allocate(state%vforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%vforce')
+
+  allocate(state%qforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%qforce') ! done add
+
   allocate(state%omega(psetcols,pver), stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%omega')
 
@@ -1632,6 +1648,10 @@ subroutine physics_state_alloc(state,lchnk,psetcols)
   state%u(:,:) = inf
   state%v(:,:) = inf
   state%s(:,:) = inf
+  state%sforce(:,:) = inf ! replay, added sweid
+  state%uforce(:,:) = inf
+  state%vforce(:,:) = inf
+  state%qforce(:,:) = inf ! done add 
   state%omega(:,:) = inf
   state%pmid(:,:) = inf
   state%pmiddry(:,:) = inf
@@ -1699,6 +1719,18 @@ subroutine physics_state_dealloc(state)
 
   deallocate(state%s, stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%s')
+
+  deallocate(state%sforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%sforce')
+
+  deallocate(state%uforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%uforce')
+
+  deallocate(state%vforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%vforce')
+
+  deallocate(state%qforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%qforce')
 
   deallocate(state%omega, stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%omega')

@@ -345,6 +345,7 @@
        Default: FALSE
        </entry>
 
+
 <!-- Corrector Parameters -->
 
 <entry id="Force_Model" type="logical" category="corrector"
@@ -610,6 +611,41 @@
          TRUE  = value=0 inside the specified window, 1 outside
          FALSE = value=1 inside the specified window, 0 outside
        Default: FALSE
+
+  
+<!-- Replay Parameters -->
+<entry id="Replay_Model" type="logical" category="replay"
+       group="replay_nl" valid_values="" >
+       Toggle Model Nudging ON/OFF.
+
+       Default: FALSE
+       </entry>
+
+<entry id="Replay_Path" type="char*256" input_pathname="abs" category="replay"
+       group="replay_nl" valid_values="" >
+       Full pathname of analyses data to use for replay.
+        (e.g. '/$DIN_LOC_ROOT/atm/cam/replay/')
+       Default: none
+       </entry>
+
+<entry id="Replay_File_Template" type="char*80" category="replay"
+       group="replay_nl" valid_values="" >
+       Template for Replay analyses file names.
+        (e.g. '/MERRA2_%y%m%d_%h.nc')
+       Default: none
+       </entry>
+
+<entry id="Replay_Beg_Year" type="integer" category="replay"
+       group="replay_nl" valid_values="" >
+       Year at which Nudging Begins.
+       Default: none
+       </entry>
+
+<entry id="Replay_coef" type="real" category="replay"
+       group="replay_nl" valid_values="" >
+       Coeffcient for replay -- usually 1 (full forcing) or 0 (no forcing)
+         [0.,1.] fraction of nudging tendency applied.
+       Default: 1.
        </entry>
 
 

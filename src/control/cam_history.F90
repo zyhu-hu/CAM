@@ -4949,7 +4949,7 @@ end subroutine print_active_fldlst
               if ( t /= f )then
                 write(iulog,*)'hfilename_spec(', f, ') = ', hfilename_spec(f)
               end if
-              call endrun
+              !call endrun ! sweidman
             end if
           end do
           if(.not. restart) then

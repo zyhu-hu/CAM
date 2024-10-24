@@ -15,10 +15,10 @@ module physpkg
   use spmd_utils,       only: masterproc
   use physconst,        only: latvap, latice, rh2o
   use physics_types,    only: physics_state, physics_tend, physics_state_set_grid, &
-       physics_ptend, physics_tend_init, physics_update,    &
+       physics_ptend, physics_tend_init, physics_update, physics_ptend_init,   &
        physics_type_alloc, physics_ptend_dealloc,&
        physics_state_alloc, physics_state_dealloc, physics_tend_alloc, physics_tend_dealloc
-  use phys_grid,        only: get_ncols_p
+  use phys_grid,        only: get_ncols_p, get_lat_all_p,get_lon_all_p,get_rlat_all_p,get_lat_p,get_lon_p
   use phys_gmean,       only: gmean_mass
   use ppgrid,           only: begchunk, endchunk, pcols, pver, pverp, psubcols
   use constituents,     only: pcnst, cnst_name, cnst_get_ind
@@ -31,6 +31,7 @@ module physpkg
   use perf_mod
   use cam_logfile,     only: iulog
   use camsrfexch,      only: cam_export
+  use replay,          only: replay_register, replay_correction, Replay_Model
 
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
@@ -58,6 +59,7 @@ module physpkg
   logical           :: state_debug_checks  ! Debug physics_state.
   logical           :: clim_modal_aero     ! climate controled by prognostic or prescribed modal aerosols
   logical           :: prog_modal_aero     ! Prognostic modal aerosols present
+  logical           :: use_SPCAM
 
   !  Physics buffer index
   integer ::  teout_idx          = 0
@@ -82,6 +84,8 @@ module physpkg
   integer ::  snow_sh_idx        = 0
   integer ::  dlfzm_idx          = 0     ! detrained convective cloud water mixing ratio.
 
+
+
 !=======================================================================
 contains
 !=======================================================================
@@ -98,7 +102,7 @@ contains
     !-----------------------------------------------------------------------
     use cam_abortutils,     only: endrun
     use physics_buffer,     only: pbuf_init_time
-    use physics_buffer,     only: pbuf_add_field, dtype_r8, pbuf_register_subcol
+    use physics_buffer,     only: pbuf_add_field, dtype_r8, pbuf_register_subcol 
     use shr_kind_mod,       only: r8 => shr_kind_r8
     use spmd_utils,         only: masterproc
     use constituents,       only: pcnst, cnst_add, cnst_chk_dim, cnst_name
@@ -146,6 +150,9 @@ contains
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
     use upper_bc,           only: ubc_fixed_conc
+#ifdef CRM
+    use crmdims,            only: crm_nx, crm_ny, crm_nz
+#endif
 
     !---------------------------Local variables-----------------------------
     !
@@ -162,7 +169,8 @@ contains
                       cld_macmic_num_steps_out = cld_macmic_num_steps, &
                       do_clubb_sgs_out         = do_clubb_sgs,     &
                       use_subcol_microp_out    = use_subcol_microp, &
-                      state_debug_checks_out   = state_debug_checks)
+                      state_debug_checks_out   = state_debug_checks, &
+                      use_spcam_out            = use_SPCAM)
 
     ! Initialize dyn_time_lvls
     call pbuf_init_time()
@@ -191,6 +199,9 @@ contains
     call pbuf_add_field('QINI',      'physpkg', dtype_r8, (/pcols,pver/), qini_idx)
     call pbuf_add_field('CLDLIQINI', 'physpkg', dtype_r8, (/pcols,pver/), cldliqini_idx)
     call pbuf_add_field('CLDICEINI', 'physpkg', dtype_r8, (/pcols,pver/), cldiceini_idx)
+
+    ! register replay vars
+    call replay_register
     
     ! check energy package
     call check_energy_register
@@ -1091,7 +1102,7 @@ contains
     !-----------------------------------------------------------------------
     use physics_buffer,  only: physics_buffer_desc, pbuf_get_chunk, pbuf_deallocate, pbuf_update_tim_idx
     use mo_lightning,    only: lightning_no_prod
-    use cam_diagnostics, only: diag_deallocate, diag_surf
+    use cam_diagnostics, only: diag_deallocate, diag_surf, diag_phys_writeout
     use physconst,       only: stebol, latvap
     use carma_intr,      only: carma_accumulate_stats
     use spmd_utils,      only: mpicom
@@ -1153,6 +1164,18 @@ contains
     call t_adj_detailf(+1)
 
 !$OMP PARALLEL DO PRIVATE (C, NCOL, phys_buffer_chunk)
+    if (Replay_Model) then
+      if (masterproc) write(iulog,*) 'About to call replay_correction.'
+      call replay_correction(phys_state,phys_tend,ztodt) ! call replay function - sweidman
+    endif
+
+    do c=begchunk,endchunk
+       ncol = get_ncols_p(c)
+       phys_buffer_chunk => pbuf_get_chunk(pbuf2d, c)
+       call diag_phys_writeout(phys_state(c), phys_buffer_chunk) ! pbuf not optional. 
+
+    end do
+    ! end added
 
     do c=begchunk,endchunk
        ncol = get_ncols_p(c)
@@ -1343,7 +1366,7 @@ contains
     endif
 
     ! Validate the physics state.
-    if (state_debug_checks) &
+    !if (state_debug_checks) &
          call physics_state_check(state, name="before tphysac")
 
     call t_startf('tphysac_init')
@@ -1851,7 +1874,7 @@ contains
     tend %dvdt(:ncol,:pver)  = 0._r8
 
     ! Verify state coming from the dynamics
-    if (state_debug_checks) &
+    !if (state_debug_checks) &
          call physics_state_check(state, name="before tphysbc (dycore?)")
 
     call clybry_fam_adj( ncol, lchnk, map2chm, state%q, pbuf )
@@ -1863,7 +1886,7 @@ contains
          1, pcnst, qmin  ,state%q )
 
     ! Validate output of clybry_fam_adj.
-    if (state_debug_checks) &
+    !if (state_debug_checks) &
          call physics_state_check(state, name="clybry_fam_adj")
 
     !
@@ -2420,5 +2443,6 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   if(Force_Model) call corrector_timestep_init(phys_state)
 
 end subroutine phys_timestep_init
+
 
 end module physpkg

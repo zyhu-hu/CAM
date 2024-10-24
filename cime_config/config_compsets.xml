@@ -200,6 +200,11 @@
     <lname>HIST_CAM%SPCAMS_CLM50%SP_CICE%PRES_DOCN%DOM_SROF_SGLC_SWAV</lname>
   </compset>
 
+  <compset>
+    <alias>FSPCAM_DART</alias>
+    <lname>2000_CAM%SPCAMS_CLM50%SP_CICE%PRES_DOCN%DOM_SROF_SGLC_SWAV</lname>
+  </compset>
+
 
   <!-- cam-chem untested compsets -->
 

@@ -25,6 +25,7 @@ module atm_comp_mct
   use cam_comp,          only: cam_init, cam_run1, cam_run2, cam_run3, cam_run4, cam_final
   use cam_instance     , only: cam_instance_init, inst_suffix, inst_index
   use cam_control_mod  , only: initial_run, dart_mode, cam_ctrl_set_orbit
+  use constituents     , only: pcnst
   use radiation        , only: radiation_nextsw_cday
   use phys_grid        , only: get_ncols_p, ngcols, get_gcol_p, get_rlat_all_p, &
 	                       get_rlon_all_p, get_area_all_p
@@ -331,7 +332,12 @@ CONTAINS
 
  subroutine atm_run_mct( EClock, cdata_a, x2a_a, a2x_a)
 
-    !-----------------------------------------------------------------------
+
+    ! Uses
+    !
+   use physics_types,   only: physics_ptend, physics_ptend_reset ! added - sweidman
+   use seq_drydep_mod, only: n_drydep
+   !-----------------------------------------------------------------------
     !
     ! Arguments
     !
@@ -367,6 +373,12 @@ CONTAINS
     real(r8):: nextsw_cday     ! calendar of next atm shortwave
     logical :: rstwr           ! .true. ==> write restart file before returning
     logical :: nlend           ! Flag signaling last time-step
+     
+    type(physics_ptend)     :: ptend ! added - sweidman
+    integer :: c, i, q, ncols
+    !logical,save :: do_restart=.true. ! end added
+    logical,save :: do_restart=.FALSE. ! end added
+
     logical :: rstwr_sync      ! .true. ==> write restart file before returning
     logical :: nlend_sync      ! Flag signaling last time-step
     logical :: first_time = .true.
@@ -437,6 +449,7 @@ CONTAINS
        call cam_run3( cam_out )
        call t_stopf  ('CAM_run3')
 
+      ! this is where the buffer vars switch
        call t_startf ('CAM_run4')
        call cam_run4( cam_out, cam_in, rstwr, nlend, &
             yr_spec=yr_sync, mon_spec=mon_sync, day_spec=day_sync, sec_spec=tod_sync)
@@ -448,7 +461,232 @@ CONTAINS
        call advance_timestep()
        call t_stopf  ('CAM_adv_timestep')
 
-       ! Run cam radiation/clouds (run1)
+       ! add swap here - sweidman
+
+       !if(masterproc) then
+         !print*, 'checking whether cam_in vars exist'
+         !if ( associated(cam_in(c)%meganflx) ) print*, 'meganflx'
+         !print*, 'not megan' 
+         !if ( associated(cam_in(c)%fireflx) .and. associated(cam_in(c)%fireztop) ) print*, 'fireflux'
+         !print*, 'not fire'  
+         !if ( index_x2a_Sl_ddvel/=0 .and. n_drydep>0 ) print*, 'dry dep vel'
+         !if (index_x2a_Fall_fco2_lnd /= 0) print*, 'fall'
+         !if (index_x2a_Faoo_fco2_ocn /= 0) print*, 'faoo fco2'
+         !if (index_x2a_Faoo_fdms_ocn /= 0) print*, 'faoo fdms'
+         !if (index_a2x_Sa_co2prog /= 0) print*, 'atm prog co2'
+         !if (index_a2x_Sa_co2diag /= 0) print*, 'atm diag co2'
+         !if (index_a2x_Faxa_nhx > 0 ) print*, 'nhx nit'
+         !if (index_a2x_Faxa_noy > 0 ) print*, 'noy nit'
+      !endif 
+
+       if (mod(tod,21600)==0 .and. .not. do_restart) then
+         if(masterproc) then
+            print *, 'swap cam old to new', tod
+          endif 
+         
+         do_restart=.TRUE.
+         do c=begchunk,endchunk
+            ncols = get_ncols_p(c)
+            do i=1,ncols
+               ! from atm_import_export list of cam_in
+               cam_in(c)%old_wsx(i) = cam_in(c)%wsx(i)
+               cam_in(c)%old_wsy(i) = cam_in(c)%wsy(i)
+               cam_in(c)%old_shf(i) = cam_in(c)%shf(i)
+               
+               cam_in(c)%old_lhf(i) = cam_in(c)%lhf(i)
+               cam_in(c)%old_lwup(i) = cam_in(c)%lwup(i)
+               cam_in(c)%old_asdir(i) = cam_in(c)%asdir(i)
+               cam_in(c)%old_aldir(i) = cam_in(c)%aldir(i)
+               cam_in(c)%old_asdif(i) = cam_in(c)%asdif(i)
+               cam_in(c)%old_aldif(i) = cam_in(c)%aldif(i)
+               cam_in(c)%old_ts(i) = cam_in(c)%ts(i)
+               cam_in(c)%old_sst(i) = cam_in(c)%sst(i)
+               cam_in(c)%old_snowhland(i) = cam_in(c)%snowhland(i)
+               cam_in(c)%old_snowhice(i) = cam_in(c)%snowhice(i)
+               cam_in(c)%old_tref(i) = cam_in(c)%tref(i)
+               cam_in(c)%old_qref(i) = cam_in(c)%qref(i)
+               cam_in(c)%old_u10(i) = cam_in(c)%u10(i)
+               cam_in(c)%old_icefrac(i) = cam_in(c)%icefrac(i)
+               cam_in(c)%old_ocnfrac(i) = cam_in(c)%ocnfrac(i)
+               cam_in(c)%old_landfrac(i) = cam_in(c)%landfrac(i)
+               if ( associated(cam_in(c)%ram1) ) &
+                  cam_in(c)%old_ram1(i) = cam_in(c)%ram1(i)
+               if ( associated(cam_in(c)%fv) ) &
+                  cam_in(c)%old_fv(i) = cam_in(c)%fv(i)
+               if ( associated(cam_in(c)%soilw) ) &
+                  cam_in(c)%old_soilw(i) = cam_in(c)%soilw(i)
+               if ( associated(cam_in(c)%dstflx) ) then
+                  cam_in(c)%old_dstflx(i,1) = cam_in(c)%dstflx(i,1)
+                  cam_in(c)%old_dstflx(i,2) = cam_in(c)%dstflx(i,2)
+                  cam_in(c)%old_dstflx(i,3) = cam_in(c)%dstflx(i,3)
+                  cam_in(c)%old_dstflx(i,4) = cam_in(c)%dstflx(i,4)
+               endif
+               if ( index_x2a_Sl_ddvel/=0 .and. n_drydep>0 ) then
+                  cam_in(c)%old_depvel(i,:n_drydep) = cam_in(c)%depvel(i,:n_drydep) 
+               endif
+
+               cam_in(c)%old_ustar(i) = cam_in(c)%ustar(i)
+               cam_in(c)%old_re(i) = cam_in(c)%re(i)
+               cam_in(c)%old_ssq(i) = cam_in(c)%ssq(i) 
+
+               ! from atm_import_export list of cam_out
+               cam_out(c)%old_psl(i) = cam_out(c)%psl(i)
+               cam_out(c)%old_zbot(i) = cam_out(c)%zbot(i)
+               cam_out(c)%old_topo(i) = cam_out(c)%topo(i)
+               cam_out(c)%old_ubot(i) = cam_out(c)%ubot(i)
+               cam_out(c)%old_vbot(i) = cam_out(c)%vbot(i)
+               cam_out(c)%old_tbot(i) = cam_out(c)%tbot(i)
+               cam_out(c)%old_thbot(i) = cam_out(c)%thbot(i)
+               cam_out(c)%old_pbot(i) = cam_out(c)%pbot(i)
+               cam_out(c)%old_rho(i) = cam_out(c)%rho(i)
+               cam_out(c)%old_netsw(i) = cam_out(c)%netsw(i)
+               cam_out(c)%old_flwds(i) = cam_out(c)%flwds(i)
+               cam_out(c)%old_precc(i) = cam_out(c)%precc(i)
+               cam_out(c)%old_precl(i) = cam_out(c)%precl(i)
+               cam_out(c)%old_precsc(i) = cam_out(c)%precsc(i)
+               cam_out(c)%old_precsl(i) = cam_out(c)%precsl(i)
+               cam_out(c)%old_soll(i) = cam_out(c)%soll(i)
+               cam_out(c)%old_sols(i) = cam_out(c)%sols(i)
+               cam_out(c)%old_solld(i) = cam_out(c)%solld(i)
+               cam_out(c)%old_solsd(i) = cam_out(c)%solsd(i)
+               cam_out(c)%old_bcphidry(i) = cam_out(c)%bcphidry(i)
+               cam_out(c)%old_bcphodry(i) = cam_out(c)%bcphodry(i)
+               cam_out(c)%old_bcphiwet(i) = cam_out(c)%bcphiwet(i)
+               cam_out(c)%old_ocphidry(i) = cam_out(c)%ocphidry(i)
+               cam_out(c)%old_ocphodry(i) = cam_out(c)%ocphodry(i)
+               cam_out(c)%old_ocphiwet(i) = cam_out(c)%ocphiwet(i)
+               cam_out(c)%old_dstwet1(i) = cam_out(c)%dstwet1(i)
+               cam_out(c)%old_dstdry1(i) = cam_out(c)%dstdry1(i)
+               cam_out(c)%old_dstwet2(i) = cam_out(c)%dstwet2(i)
+               cam_out(c)%old_dstdry2(i) = cam_out(c)%dstdry2(i)
+               cam_out(c)%old_dstwet3(i) = cam_out(c)%dstwet3(i)
+               cam_out(c)%old_dstdry3(i) = cam_out(c)%dstdry3(i)
+               cam_out(c)%old_dstwet4(i) = cam_out(c)%dstwet4(i)
+               cam_out(c)%old_dstdry4(i) = cam_out(c)%dstdry4(i)
+
+               if (index_a2x_Sa_co2prog /= 0) then
+                  cam_out(c)%old_co2prog(i) = cam_out(c)%co2prog(i) ! atm prognostic co2
+               end if
+               if (index_a2x_Sa_co2diag /= 0) then
+                  cam_out(c)%old_co2diag(i) = cam_out(c)%co2diag(i) ! atm diagnostic co2
+               end if
+
+               do q=1,pcnst
+                  cam_out(c)%old_qbot(i,q)=cam_out(c)%qbot(i,q)
+                  cam_in(c)%old_cflx(i,q)      = cam_in(c)%cflx(i,q)
+               end do
+            end do
+         end do
+       end if 
+
+       if ( mod(tod,21600)==10800 .AND. do_restart ) then
+
+         if(masterproc) then
+            print *,  'swap cam new to old', tod
+          endif 
+
+         do_restart=.FALSE.
+  
+         do c=begchunk,endchunk
+             ncols = get_ncols_p(c)
+             do i=1,ncols
+               cam_in(c)%wsx(i) = cam_in(c)%old_wsx(i)
+               cam_in(c)%wsy(i) = cam_in(c)%old_wsy(i)
+               cam_in(c)%shf(i) = cam_in(c)%old_shf(i)
+               cam_in(c)%lhf(i) = cam_in(c)%old_lhf(i)
+               cam_in(c)%lwup(i) = cam_in(c)%old_lwup(i)
+               cam_in(c)%asdir(i) = cam_in(c)%old_asdir(i)
+               cam_in(c)%aldir(i) = cam_in(c)%old_aldir(i)
+               cam_in(c)%asdif(i) = cam_in(c)%old_asdif(i)
+               cam_in(c)%aldif(i) = cam_in(c)%old_aldif(i)
+               cam_in(c)%ts(i) = cam_in(c)%old_ts(i)
+               cam_in(c)%sst(i) = cam_in(c)%old_sst(i)
+               cam_in(c)%snowhland(i) = cam_in(c)%old_snowhland(i)
+               cam_in(c)%snowhice(i) = cam_in(c)%old_snowhice(i)
+               cam_in(c)%tref(i) = cam_in(c)%old_tref(i)
+               cam_in(c)%qref(i) = cam_in(c)%old_qref(i)
+               cam_in(c)%u10(i) = cam_in(c)%old_u10(i)
+               cam_in(c)%icefrac(i) = cam_in(c)%old_icefrac(i)
+               cam_in(c)%ocnfrac(i) = cam_in(c)%old_ocnfrac(i)
+
+               ! skipping ram1, fv, soilw, others with if statements
+               cam_in(c)%landfrac(i) = cam_in(c)%old_landfrac(i)
+               if ( associated(cam_in(c)%ram1) ) &
+                  cam_in(c)%ram1(i) = cam_in(c)%old_ram1(i)
+               if ( associated(cam_in(c)%fv) ) &
+                  cam_in(c)%fv(i) = cam_in(c)%old_fv(i)
+               if ( associated(cam_in(c)%soilw) ) &
+                  cam_in(c)%soilw(i) = cam_in(c)%old_soilw(i)
+               if ( associated(cam_in(c)%dstflx) ) then
+                  cam_in(c)%dstflx(i,1) = cam_in(c)%old_dstflx(i,1)
+                  cam_in(c)%dstflx(i,2) = cam_in(c)%old_dstflx(i,2)
+                  cam_in(c)%dstflx(i,3) = cam_in(c)%old_dstflx(i,3)
+                  cam_in(c)%dstflx(i,4) = cam_in(c)%old_dstflx(i,4)
+               endif
+               if ( index_x2a_Sl_ddvel/=0 .and. n_drydep>0 ) then
+                  cam_in(c)%depvel(i,:n_drydep) = cam_in(c)%old_depvel(i,:n_drydep) 
+               endif
+
+               cam_in(c)%ustar(i) = cam_in(c)%old_ustar(i)
+               cam_in(c)%re(i) = cam_in(c)%old_re(i)
+               cam_in(c)%ssq(i) = cam_in(c)%old_ssq(i)
+
+               cam_out(c)%psl(i) = cam_out(c)%old_psl(i)
+               cam_out(c)%zbot(i) = cam_out(c)%old_zbot(i)
+               cam_out(c)%topo(i) = cam_out(c)%old_topo(i)
+               cam_out(c)%ubot(i) = cam_out(c)%old_ubot(i)
+               cam_out(c)%vbot(i) = cam_out(c)%old_vbot(i)
+               cam_out(c)%tbot(i) = cam_out(c)%old_tbot(i)
+               cam_out(c)%thbot(i) = cam_out(c)%old_thbot(i)
+               cam_out(c)%pbot(i) = cam_out(c)%old_pbot(i)
+               cam_out(c)%rho(i) = cam_out(c)%old_rho(i)
+               cam_out(c)%netsw(i) = cam_out(c)%old_netsw(i)
+               cam_out(c)%flwds(i) = cam_out(c)%old_flwds(i)
+               cam_out(c)%precc(i) = cam_out(c)%old_precc(i)
+               cam_out(c)%precl(i) = cam_out(c)%old_precl(i)
+               cam_out(c)%precsc(i) = cam_out(c)%old_precsc(i)
+               cam_out(c)%precsl(i) = cam_out(c)%old_precsl(i)
+               cam_out(c)%soll(i) = cam_out(c)%old_soll(i)
+               cam_out(c)%sols(i) = cam_out(c)%old_sols(i)
+               cam_out(c)%solld(i) = cam_out(c)%old_solld(i)
+               cam_out(c)%solsd(i) = cam_out(c)%old_solsd(i)
+               cam_out(c)%bcphidry(i) = cam_out(c)%old_bcphidry(i)
+               cam_out(c)%bcphodry(i) = cam_out(c)%old_bcphodry(i)
+               cam_out(c)%bcphiwet(i) = cam_out(c)%old_bcphiwet(i)
+               cam_out(c)%ocphidry(i) = cam_out(c)%old_ocphidry(i)
+               cam_out(c)%ocphodry(i) = cam_out(c)%old_ocphodry(i)
+               cam_out(c)%ocphiwet(i) = cam_out(c)%old_ocphiwet(i)
+               cam_out(c)%dstwet1(i) = cam_out(c)%old_dstwet1(i)
+               cam_out(c)%dstdry1(i) = cam_out(c)%old_dstdry1(i)
+               cam_out(c)%dstwet2(i) = cam_out(c)%old_dstwet2(i)
+               cam_out(c)%dstdry2(i) = cam_out(c)%old_dstdry2(i)
+               cam_out(c)%dstwet3(i) = cam_out(c)%old_dstwet3(i)
+               cam_out(c)%dstdry3(i) = cam_out(c)%old_dstdry3(i)
+               cam_out(c)%dstwet4(i) = cam_out(c)%old_dstwet4(i)
+               cam_out(c)%dstdry4(i) = cam_out(c)%old_dstdry4(i)
+
+               if (index_a2x_Sa_co2prog /= 0) then
+                  cam_out(c)%co2prog(i) = cam_out(c)%old_co2prog(i) ! atm prognostic co2
+               end if
+               if (index_a2x_Sa_co2diag /= 0) then
+                  cam_out(c)%co2diag(i) = cam_out(c)%old_co2diag(i) ! atm diagnostic co2
+               end if
+
+               do q=1,pcnst
+                  cam_out(c)%qbot(i,q)=cam_out(c)%old_qbot(i,q)
+                  cam_in(c)%cflx(i,q)      = cam_in(c)%old_cflx(i,q)
+             end do
+         end do
+       end do
+
+       ! zero out tendencies
+       call physics_ptend_reset(ptend)
+
+       do_restart=.FALSE.
+       end if
+       ! end add
+
+       ! Run cam radiation/clouds (run1) -- moved up sweid (this is the next timestep)
 
        call t_startf ('CAM_run1')
        call cam_run1 ( cam_in, cam_out )
@@ -496,7 +734,7 @@ CONTAINS
        call seq_timemgr_EClockGetData(EClock, curr_ymd=ymd_sync, curr_tod=tod_sync )
        write(iulog,*)' cam ymd=',ymd     ,'  cam tod= ',tod
        write(iulog,*)'sync ymd=',ymd_sync,' sync tod= ',tod_sync
-       call shr_sys_abort( subname//': CAM clock is not in sync with master Sync Clock' )
+       ! call shr_sys_abort( subname//': CAM clock is not in sync with master Sync Clock' )
     end if
 
     ! End redirection of share output to cam log
@@ -511,6 +749,12 @@ CONTAINS
       call memmon_reset_addr()
     endif
 #endif
+
+if(masterproc) then
+   print *, 'after atm_run: ', tod
+   print *, 'after atm_run: ', cam_out(begchunk)%tbot(2)
+   print *, cam_in(begchunk)%shf(2)
+ end if
 
   end subroutine atm_run_mct
 

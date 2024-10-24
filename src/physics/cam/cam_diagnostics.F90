@@ -191,6 +191,15 @@ contains
     call addfld ('V',          (/ 'lev' /), 'A', 'm/s',      'Meridional wind')
 
     call register_vector_field('U','V')
+    
+    ! forcings added to fld list
+    ! sweidman
+    call addfld ('SDIFF   ',(/ 'lev' /),'I','K       ', 'S diff')
+    call addfld ('UDIFF   ',(/ 'lev' /),'I','m/s     ', 'U diff')
+    call addfld ('VDIFF   ',(/ 'lev' /),'I','m/s     ', 'V diff')
+    call addfld ('QDIFF   ',(/ 'lev' /),'I','kg/kg   ', 'Q diff') ! phys_decomp?
+
+    call register_vector_field('UDIFF', 'VDIFF') ! TODO: probably not necessary
 
     ! State before physics
     call addfld ('TBP',     (/ 'lev' /), 'A','K',             'Temperature (before physics)')
@@ -297,6 +306,13 @@ contains
       call add_default ('OMEGAT  ', 1, ' ')
       call add_default ('PSL     ', 1, ' ')
     end if
+
+    !forcings added to default list
+    !sweidman
+    call add_default ('SDIFF   '  , 1, ' ')
+    call add_default ('UDIFF   '  , 1, ' ')
+    call add_default ('VDIFF   '  , 1, ' ')
+    call add_default ('QDIFF   '  , 1, ' ')
 
     if (history_vdiag) then
       call add_default ('U200', 2, ' ')
@@ -941,6 +957,14 @@ contains
     call outfld('V       ',state%v , pcols   ,lchnk   )
 
     call outfld('PHIS    ',state%phis,    pcols,   lchnk     )
+
+    !output forcings
+    ! sweidman
+    call outfld('SDIFF   ',state%sforce, pcols, lchnk  )
+    call outfld('UDIFF   ',state%uforce, pcols, lchnk  )
+    call outfld('VDIFF   ',state%vforce, pcols, lchnk  )
+    call outfld('QDIFF   ',state%qforce, pcols, lchnk  )
+
 
 #if (defined BFB_CAM_SCAM_IOP )
     call outfld('phis    ',state%phis,    pcols,   lchnk     )

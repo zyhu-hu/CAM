@@ -54,6 +54,11 @@ subroutine pftinit(im, fft_flt_in)
    real(r8) :: rcffta
    !----------------------------------------------------------------------------
    
+   ! sweidman
+   if ( allocated(trigs) ) then
+      deallocate(trigs)
+   endif
+
    fft_flt = fft_flt_in
 
 #if defined( LIBSCI_FFT )
