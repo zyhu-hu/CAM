@@ -191,7 +191,7 @@ contains
     call pbuf_add_field('QINI',      'physpkg', dtype_r8, (/pcols,pver/), qini_idx)
     call pbuf_add_field('CLDLIQINI', 'physpkg', dtype_r8, (/pcols,pver/), cldliqini_idx)
     call pbuf_add_field('CLDICEINI', 'physpkg', dtype_r8, (/pcols,pver/), cldiceini_idx)
-
+    
     ! check energy package
     call check_energy_register
 
@@ -745,6 +745,7 @@ contains
     use dadadj_cam,         only: dadadj_init
     use cam_abortutils,     only: endrun
     use nudging,            only: Nudge_Model, nudging_init
+    use corrector,          only: Force_Model, corrector_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -913,6 +914,9 @@ contains
     ! Initialize Nudging Parameters
     !--------------------------------
     if(Nudge_Model) call nudging_init
+
+    ! Initialize Corrector
+    if(Force_Model) call corrector_init
 
     if (clim_modal_aero) then
 
@@ -1272,6 +1276,7 @@ contains
     use qneg_module,        only: qneg4
     use co2_cycle,          only: co2_cycle_set_ptend
     use nudging,            only: Nudge_Model,Nudge_ON,nudging_timestep_tend
+    use corrector,          only: Force_Model,Force_ON, corrector_timestep_tend 
 
     !
     ! Arguments
@@ -1545,6 +1550,14 @@ contains
       call nudging_timestep_tend(state,ptend)
       call physics_update(state,ptend,ztodt,tend)
       call check_energy_chng(state, tend, "nudging", nstep, ztodt, zero, zero, zero, zero)
+    endif
+
+    ! Update Corrector values, if needed
+    !----------------------------------
+    if((Force_Model).and.(Force_ON)) then
+      call corrector_timestep_tend(state,ptend)
+      call physics_update(state,ptend,ztodt,tend)
+      call check_energy_chng(state, tend, "corrector", nstep, ztodt, zero, zero, zero, zero)
     endif
 
     !-------------- Energy budget checks vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -2334,6 +2347,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use epp_ionization,      only: epp_ionization_active
   use iop_forcing,         only: scam_use_iop_srf
   use nudging,             only: Nudge_Model, nudging_timestep_init
+  use corrector,           only: Force_Model, corrector_timestep_init
 
   implicit none
 
@@ -2402,6 +2416,8 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   ! Update Nudging values, if needed
   !----------------------------------
   if(Nudge_Model) call nudging_timestep_init(phys_state)
+
+  if(Force_Model) call corrector_timestep_init(phys_state)
 
 end subroutine phys_timestep_init
 
