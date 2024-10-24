@@ -90,6 +90,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use rate_diags,          only: rate_diags_readnl
    use tracers,             only: tracers_readnl
    use nudging,             only: nudging_readnl
+   use corrector,           only: corrector_readnl
    use replay,              only: replay_readnl
 
    use dyn_comp,            only: dyn_readnl
@@ -187,6 +188,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call rate_diags_readnl(nlfilename)
    call scam_readnl(nlfilename, single_column, scmlat, scmlon)
    call nudging_readnl(nlfilename)
+   call corrector_readnl(nlfilename)
    call replay_readnl(nlfilename)
 
    call dyn_readnl(nlfilename)

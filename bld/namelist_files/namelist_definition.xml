@@ -345,6 +345,274 @@
        Default: FALSE
        </entry>
 
+
+<!-- Corrector Parameters -->
+
+<entry id="Force_Model" type="logical" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Toggle Model corrector ON/OFF.
+
+        FORCING:
+        --------
+        Nudging tendencies are applied as a relaxation force between the current
+        model state values and target state values derived from the avalilable
+        analyses. The form of the target values is selected by the 'Force_Force_Opt'
+        option, the timescale of the forcing is determined from the given
+        'Force_TimeScale_Opt', and the nudging strength Alpha=[0.,1.] for each
+        variable is specified by the 'Force_Xcoef' values. Where X={U,V,T,Q,PS}
+
+               F_Force = Alpha*((Target-Model(t_curr))/TimeScale
+
+        WINDOWING:
+        ----------
+        The region of applied nudging can be limited using Horizontal/Vertical
+        window functions that are constructed using a parameterization of the
+        Heaviside step function.
+
+        The Heaviside window function is the product of separate horizonal and vertical
+        windows that are controled via 12 parameters:
+
+            Force_Hwin_lat0:     Specify the horizontal center of the window in degrees.
+            Force_Hwin_lon0:     The longitude must be in the range [0,360] and the
+                                 latitude should be [-90,+90].
+            Force_Hwin_latWidth: Specify the lat and lon widths of the window as positive
+            Force_Hwin_lonWidth: values in degrees.Setting a width to a large value (e.g. 999)
+                                 renders the window a constant in that direction.
+            Force_Hwin_latDelta: Controls the sharpness of the window transition with a
+            Force_Hwin_lonDelta: length in degrees. Small non-zero values yeild a step
+                                 function while a large value yeilds a smoother transition.
+            Force_Hwin_Invert  : A logical flag used to invert the horizontal window function
+                                 to get its compliment.(e.g. to Force outside a given window).
+
+            Force_Vwin_Lindex:   In the vertical, the window is specified in terms of model
+            Force_Vwin_Ldelta:   level indcies. The High and Low transition levels should
+            Force_Vwin_Hindex:   range from [0,(NLEV+1)]. The transition lengths are also
+            Force_Vwin_Hdelta:   specified in terms of model indices. For a window function
+                                 constant in the vertical, the Low index should be set to 0,
+                                 the High index should be set to (NLEV+1), and the transition
+                                 lengths should be set to 0.001
+            Force_Vwin_Invert  : A logical flag used to invert the vertical window function
+                                 to get its compliment.
+       Default: FALSE
+       </entry>
+
+<entry id="Force_Path" type="char*256" input_pathname="abs" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Full pathname of analyses data to use for corrector.
+        (e.g. '/$DIN_LOC_ROOT/atm/cam/corrector/')
+       Default: none
+       </entry>
+
+<entry id="Force_File_Template" type="char*80" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Template for corrector forcing file names.
+        (e.g. '%y/ERAI_ne30np4_L30.cam2.i.%y-%m-%d-%s.nc')
+       Default: none
+       </entry>
+
+<entry id="Force_Times_Per_Day" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Number of analyses files per day.
+        (e.g. 4 --> 6 hourly analyses)
+       Default: none
+       </entry>
+
+<entry id="Force_Beg_Year" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Year at which corrector Begins.
+       Default: none
+       </entry>
+
+<entry id="Force_Beg_Month" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Month at which corrector Begins.
+       Default: none
+       </entry>
+
+<entry id="Force_Beg_Day" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Day at which corrector Begins.
+       Default: none
+       </entry>
+
+<entry id="Force_End_Year" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Year at which corrector Ends.
+       Default: none
+       </entry>
+
+<entry id="Force_End_Month" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Month at which corrector Ends.
+       Default: none
+       </entry>
+
+<entry id="Force_End_Day" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Day at which corrector Ends.
+       Default: none
+       </entry>
+
+<entry id="Force_Uprof" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Profile index for U corrector.
+         0 == OFF      (No corrector of this variable)
+         1 == CONSTANT (Spatially Uniform corrector)
+         2 == HEAVISIDE WINDOW FUNCTION
+       Default: 0
+       </entry>
+
+<entry id="Force_Ucoef" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Normalized Coeffcient for U corrector.
+         [0.,1.] fraction of corrector tendency applied.
+       Default: 0.
+       </entry>
+
+<entry id="Force_Vprof" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Profile index for V corrector.
+         0 == OFF      (No corrector of this variable)
+         1 == CONSTANT (Spatially Uniform corrector)
+         2 == HEAVISIDE WINDOW FUNCTION
+       Default: 0
+       </entry>
+
+<entry id="Force_Vcoef" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Normalized Coeffcient for V corrector.
+         [0.,1.] fraction of corrector tendency applied.
+       Default: 0.
+       </entry>
+
+<entry id="Force_Tprof" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Profile index for T corrector.
+         0 == OFF      (No corrector of this variable)
+         1 == CONSTANT (Spatially Uniform corrector)
+         2 == HEAVISIDE WINDOW FUNCTION
+       Default: 0
+       </entry>
+
+<entry id="Force_Tcoef" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Normalized Coeffcient for T corrector.
+         [0.,1.] fraction of corrector tendency applied.
+       Default: 0.
+       </entry>
+
+<entry id="Force_Qprof" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Profile index for Q corrector.
+         0 == OFF      (No corrector of this variable)
+         1 == CONSTANT (Spatially Uniform corrector)
+         2 == HEAVISIDE WINDOW FUNCTION
+       Default: 0
+       </entry>
+
+<entry id="Force_Qcoef" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Normalized Coeffcient for Q corrector.
+         [0.,1.] fraction of corrector tendency applied.
+       Default: 0.
+       </entry>
+
+<entry id="Force_PSprof" type="integer" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Profile index for PS corrector.
+         0 == OFF      (No corrector of this variable)
+         1 == CONSTANT (Spatially Uniform corrector)
+         2 == HEAVISIDE WINDOW FUNCTION
+       Default: 0
+       </entry>
+
+<entry id="Force_PScoef" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Normalized Coeffcient for PS corrector.
+         [0.,1.] fraction of corrector tendency applied.
+       Default: 0.
+       </entry>
+
+<entry id="Force_Hwin_lat0" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       LAT0 center of Horizontal Window in degrees [-90.,90.].
+       Default: none
+       </entry>
+
+<entry id="Force_Hwin_latWidth" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Width of LAT Window in degrees.
+       Default: none
+       </entry>
+
+<entry id="Force_Hwin_latDelta" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Width of transition which controls the steepness of window transition in latitude.
+        0. --> Step function
+       Default: none
+       </entry>
+
+<entry id="Force_Hwin_lon0" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       LON0 center of Horizontal Window in degrees [0.,360.].
+       Default: none
+       </entry>
+
+<entry id="Force_Hwin_lonWidth" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Width of LON Window in degrees.
+       Default: none
+       </entry>
+
+<entry id="Force_Hwin_lonDelta" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Width of transition which controls the steepness of window transition in longitude.
+        0. --> Step function
+       Default: none
+       </entry>
+
+<entry id="Force_Hwin_Invert" type="logical" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Invert Horizontal Window Function to its Compliment.
+         TRUE  = value=0 inside the specified window, 1 outside
+         FALSE = value=1 inside the specified window, 0 outside
+       Default: FALSE
+       </entry>
+
+<entry id="Force_Vwin_Hindex" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       HIGH Level Index for Verical Window specified in terms of model level indices.
+         (e.g. For a 30 level model, Force_Vwin_Hindex ~ 30 )
+       Default: none
+       </entry>
+
+<entry id="Force_Vwin_Hdelta" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Width of transition for HIGH end of Vertical Window.
+       Default: none
+       </entry>
+
+<entry id="Force_Vwin_Lindex" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       LOW Level Index for Verical Window specified in terms of model level indices.
+         (e.g. Force_Vwin_Lindex ~ 0 )
+       Default: none
+       </entry>
+
+<entry id="Force_Vwin_Ldelta" type="real" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Width of transition for LOW end of Vertical Window.
+       Default: none
+       </entry>
+
+<entry id="Force_Vwin_Invert" type="logical" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Invert Vertical Window Function to its Compliment.
+         TRUE  = value=0 inside the specified window, 1 outside
+         FALSE = value=1 inside the specified window, 0 outside
+       Default: FALSE
+
+  
 <!-- Replay Parameters -->
 <entry id="Replay_Model" type="logical" category="replay"
        group="replay_nl" valid_values="" >
