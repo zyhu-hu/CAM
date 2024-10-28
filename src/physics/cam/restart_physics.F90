@@ -379,7 +379,7 @@ module restart_physics
         call subcol_read_restart(File)
      end if
 
-     call pbuf_read_restart(File, pbuf2d)
+     !call pbuf_read_restart(File, pbuf2d)
 
      csize=endchunk-begchunk+1
      dims(1) = pcols

@@ -81,6 +81,44 @@ module camsrfexch
      real(r8) :: dstdry4(pcols)      ! dry deposition of dust (bin4)
      real(r8), pointer, dimension(:) :: nhx_nitrogen_flx ! nitrogen deposition fluxes (kgN/m2/s)
      real(r8), pointer, dimension(:) :: noy_nitrogen_flx ! nitrogen deposition fluxes (kgN/m2/s)
+
+     real(r8) :: old_tbot(pcols)         ! bot level temperature
+     real(r8) :: old_zbot(pcols)         ! bot level height above surface
+     real(r8) :: old_topo(pcols)         ! surface topographic height (m)
+     real(r8) :: old_ubot(pcols)         ! bot level u wind
+     real(r8) :: old_vbot(pcols)         ! bot level v wind
+     real(r8) :: old_qbot(pcols,pcnst)   ! bot level specific humidity
+     real(r8) :: old_pbot(pcols)         ! bot level pressure
+     real(r8) :: old_rho(pcols)          ! bot level density	
+     real(r8) :: old_netsw(pcols)        !	
+     real(r8) :: old_flwds(pcols)        ! 
+     real(r8) :: old_precsc(pcols)       !
+     real(r8) :: old_precsl(pcols)       !
+     real(r8) :: old_precc(pcols)        ! 
+     real(r8) :: old_precl(pcols)        ! 
+     real(r8) :: old_soll(pcols)         ! 
+     real(r8) :: old_sols(pcols)         ! 
+     real(r8) :: old_solld(pcols)        !
+     real(r8) :: old_solsd(pcols)        !
+     real(r8) :: old_thbot(pcols)        ! 
+     real(r8) :: old_co2prog(pcols)      ! prognostic co2
+     real(r8) :: old_co2diag(pcols)      ! diagnostic co2
+     real(r8) :: old_psl(pcols)
+     real(r8) :: old_bcphiwet(pcols)     ! wet deposition of hydrophilic black carbon
+     real(r8) :: old_bcphidry(pcols)     ! dry deposition of hydrophilic black carbon
+     real(r8) :: old_bcphodry(pcols)     ! dry deposition of hydrophobic black carbon
+     real(r8) :: old_ocphiwet(pcols)     ! wet deposition of hydrophilic organic carbon
+     real(r8) :: old_ocphidry(pcols)     ! dry deposition of hydrophilic organic carbon
+     real(r8) :: old_ocphodry(pcols)     ! dry deposition of hydrophobic organic carbon
+     real(r8) :: old_dstwet1(pcols)      ! wet deposition of dust (bin1)
+     real(r8) :: old_dstdry1(pcols)      ! dry deposition of dust (bin1)
+     real(r8) :: old_dstwet2(pcols)      ! wet deposition of dust (bin2)
+     real(r8) :: old_dstdry2(pcols)      ! dry deposition of dust (bin2)
+     real(r8) :: old_dstwet3(pcols)      ! wet deposition of dust (bin3)
+     real(r8) :: old_dstdry3(pcols)      ! dry deposition of dust (bin3)
+     real(r8) :: old_dstwet4(pcols)      ! wet deposition of dust (bin4)
+     real(r8) :: old_dstdry4(pcols)      ! dry deposition of dust (bin4)
+
   end type cam_out_t 
 
 !---------------------------------------------------------------------------
@@ -124,6 +162,39 @@ module camsrfexch
      real(r8), pointer, dimension(:,:) :: meganflx ! MEGAN fluxes
      real(r8), pointer, dimension(:,:) :: fireflx ! wild fire emissions
      real(r8), pointer, dimension(:)   :: fireztop ! wild fire emissions vert distribution top
+
+     real(r8) :: old_asdir(pcols)            ! albedo: shortwave, direct
+     real(r8) :: old_asdif(pcols)            ! albedo: shortwave, diffuse
+     real(r8) :: old_aldir(pcols)            ! albedo: longwave, direct
+     real(r8) :: old_aldif(pcols)            ! albedo: longwave, diffuse
+     real(r8) :: old_lwup(pcols)             ! longwave up radiative flux
+     real(r8) :: old_lhf(pcols)              ! latent heat flux
+     real(r8) :: old_shf(pcols)              ! sensible heat flux
+     real(r8) :: old_wsx(pcols)              ! surface u-stress (N)
+     real(r8) :: old_wsy(pcols)              ! surface v-stress (N)
+     real(r8) :: old_tref(pcols)             ! ref height surface air temp
+     real(r8) :: old_qref(pcols)             ! ref height specific humidity 
+     real(r8) :: old_u10(pcols)              ! 10m wind speed
+     real(r8) :: old_ts(pcols)               ! merged surface temp 
+     real(r8) :: old_sst(pcols)              ! sea surface temp
+     real(r8) :: old_snowhland(pcols)        ! snow depth (liquid water equivalent) over land 
+     real(r8) :: old_snowhice(pcols)         ! snow depth over ice
+     real(r8) :: old_fco2_lnd(pcols)         ! co2 flux from lnd
+     real(r8) :: old_fco2_ocn(pcols)         ! co2 flux from ocn
+     real(r8) :: old_fdms(pcols)             ! dms flux
+     real(r8) :: old_landfrac(pcols)         ! land area fraction
+     real(r8) :: old_icefrac(pcols)          ! sea-ice areal fraction
+     real(r8) :: old_ocnfrac(pcols)          ! ocean areal fraction
+     real(r8) :: old_cflx(pcols,pcnst)       ! constituent flux (emissions)
+     real(r8) :: old_ustar(pcols)            ! atm/ocn saved version of ustar
+     real(r8) :: old_re(pcols)               ! atm/ocn saved version of re
+     real(r8) :: old_ssq(pcols)              ! atm/ocn saved version of ssq
+     real(r8), pointer, dimension(:) :: old_ram1  !aerodynamical resistance (s/m) (pcols)
+     real(r8), pointer, dimension(:) :: old_fv    !friction velocity (m/s) (pcols)
+     real(r8), pointer, dimension(:) :: old_soilw !volumetric soil water (m3/m3)
+     real(r8), pointer, dimension(:,:) :: old_dstflx ! dust fluxes
+     real(r8), pointer, dimension(:,:) :: old_depvel ! deposition velocities
+
   end type cam_in_t    
 
 !===============================================================================
@@ -181,24 +252,37 @@ CONTAINS
        nullify(cam_in(c)%meganflx)
        nullify(cam_in(c)%fireflx)
        nullify(cam_in(c)%fireztop)
+       nullify(cam_in(c)%old_ram1)
+       nullify(cam_in(c)%old_fv)
+       nullify(cam_in(c)%old_soilw)
+       nullify(cam_in(c)%old_dstflx)
+       nullify(cam_in(c)%old_depvel)
     enddo  
     do c = begchunk,endchunk 
        if (index_x2a_Sl_ram1>0) then
           allocate (cam_in(c)%ram1(pcols), stat=ierror)
           if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error ram1')
+          allocate (cam_in(c)%old_ram1(pcols), stat=ierror)
+          if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error old_ram1')
        endif
        if (index_x2a_Sl_fv>0) then
           allocate (cam_in(c)%fv(pcols), stat=ierror)
           if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error fv')
+          allocate (cam_in(c)%old_fv(pcols), stat=ierror)
+          if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error old_fv')
        endif
        if (index_x2a_Sl_soilw /= 0) then
           allocate (cam_in(c)%soilw(pcols), stat=ierror)
           if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error soilw')
+          allocate (cam_in(c)%old_soilw(pcols), stat=ierror)
+          if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error old_soilw')
        end if
        if (index_x2a_Fall_flxdst1>0) then
           ! Assume 4 bins from surface model ....
           allocate (cam_in(c)%dstflx(pcols,4), stat=ierror)
           if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error dstflx')
+          allocate (cam_in(c)%old_dstflx(pcols,4), stat=ierror)
+          if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error old_dstflx')
        endif
        if ( index_x2a_Fall_flxvoc>0 .and. shr_megan_mechcomps_n>0 ) then
           allocate (cam_in(c)%meganflx(pcols,shr_megan_mechcomps_n), stat=ierror)
@@ -210,6 +294,8 @@ CONTAINS
        do c = begchunk,endchunk 
           allocate (cam_in(c)%depvel(pcols,n_drydep), stat=ierror)
           if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error depvel')
+          allocate (cam_in(c)%old_depvel(pcols,n_drydep), stat=ierror)
+          if ( ierror /= 0 ) call endrun('HUB2ATM_ALLOC error: allocation error old_depvel')
        end do
     endif
 
@@ -256,6 +342,14 @@ CONTAINS
             cam_in(c)%soilw (:) = 0.0_r8
        if (associated(cam_in(c)%dstflx)) &
             cam_in(c)%dstflx(:,:) = 0.0_r8
+       if (associated(cam_in(c)%old_ram1)) &
+            cam_in(c)%old_ram1  (:) = 0.1_r8
+       if (associated(cam_in(c)%old_fv)) &
+            cam_in(c)%fv    (:) = 0.1_r8
+       if (associated(cam_in(c)%old_soilw)) &
+            cam_in(c)%old_soilw (:) = 0.0_r8
+       if (associated(cam_in(c)%old_dstflx)) &
+            cam_in(c)%old_dstflx(:,:) = 0.0_r8
        if (associated(cam_in(c)%meganflx)) &
             cam_in(c)%meganflx(:,:) = 0.0_r8
 
@@ -265,6 +359,7 @@ CONTAINS
        cam_in(c)%ssq      (:) = 0._r8
        if (lnd_drydep .and. n_drydep>0) then
           cam_in(c)%depvel (:,:) = 0._r8
+          cam_in(c)%old_depvel (:,:) = 0._r8
        endif
        if ( index_x2a_Fall_flxfire>0 .and. shr_fire_emis_mechcomps_n>0 ) then
           cam_in(c)%fireflx(:,:) = 0._r8
@@ -403,6 +498,22 @@ CONTAINS
              deallocate(cam_in(c)%dstflx)
              nullify(cam_in(c)%dstflx)
           end if
+          if(associated(cam_in(c)%old_ram1)) then
+            deallocate(cam_in(c)%old_ram1)
+            nullify(cam_in(c)%old_ram1)
+         end if
+         if(associated(cam_in(c)%old_fv)) then
+            deallocate(cam_in(c)%old_fv)
+            nullify(cam_in(c)%old_fv)
+         end if
+         if(associated(cam_in(c)%old_soilw)) then
+            deallocate(cam_in(c)%old_soilw)
+            nullify(cam_in(c)%old_soilw)
+         end if
+         if(associated(cam_in(c)%old_dstflx)) then
+            deallocate(cam_in(c)%old_dstflx)
+            nullify(cam_in(c)%old_dstflx)
+         end if
           if(associated(cam_in(c)%meganflx)) then
              deallocate(cam_in(c)%meganflx)
              nullify(cam_in(c)%meganflx)
@@ -411,6 +522,10 @@ CONTAINS
              deallocate(cam_in(c)%depvel)
              nullify(cam_in(c)%depvel)
           end if
+          if(associated(cam_in(c)%old_depvel)) then
+            deallocate(cam_in(c)%old_depvel)
+            nullify(cam_in(c)%old_depvel)
+         end if
           
        enddo
 
