@@ -542,7 +542,6 @@ contains
    call addfld( 'Force_T',(/ 'lev' /),'I','K/s'    ,'T corrector Tendency')
    call addfld( 'Force_Q',(/ 'lev' /),'I','kg/kg/s','Q corrector Tendency')
 
-
    !-----------------------------------------
    ! Values initialized only by masterproc
    !-----------------------------------------

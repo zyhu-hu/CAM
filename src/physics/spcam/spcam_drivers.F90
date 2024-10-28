@@ -15,6 +15,7 @@ use pkg_cldoptics,    only: cldems, cldovrlap, cldefr
 use phys_grid,        only: get_rlat_all_p, get_rlon_all_p
 use cam_history,      only: outfld
 use cam_history_support, only : fillvalue
+use spmd_utils,       only: masterproc ! added for debug
 
 implicit none
 save
@@ -314,6 +315,7 @@ subroutine tphysbc_spcam (ztodt, state,   &
     use phys_control,    only: phys_getopts
     use sslt_rebin,      only: sslt_rebin_adv
     use qneg_module,     only: qneg3
+    use conv_state_swap, only: ConvStateSwap_Model, conv_state_swap_in, conv_state_swap_out
 
     implicit none
 
@@ -482,6 +484,9 @@ subroutine tphysbc_spcam (ztodt, state,   &
 
     call t_stopf('dry_adjustment')
 
+    ! swap state before CRM
+    if (ConvStateSwap_Model) call conv_state_swap_in(ztodt, state,tend)
+
     ! -------------------------------------------------------------------------------
     ! Call cloud resolving model
     ! -------------------------------------------------------------------------------
@@ -558,6 +563,9 @@ subroutine tphysbc_spcam (ztodt, state,   &
     call physics_update(state, ptend, ztodt, tend)
 
     call check_energy_chng(state, tend, "spradheat", nstep, ztodt, zero, zero, zero, zero)
+
+    ! swap state before CRM
+    if (ConvStateSwap_Model) call conv_state_swap_out(ztodt, state,tend)
 
     call t_stopf('radiation')
 

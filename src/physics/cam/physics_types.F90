@@ -72,6 +72,10 @@ module physics_types
           u,       &! zonal wind (m/s)
           v,       &! meridional wind (m/s)
           s,       &! dry static energy
+          sconvforce, &! static energy convective forcing
+          uconvforce, &! u convective forcing
+          vconvforce, &! v convective forcing
+          qconvforce, &! q convective forcing
           sforce,  &! static energy difference ! defining replay forcings - sweidman
           uforce,  &! zonal wind difference
           vforce,  &! meridional wind difference
@@ -1553,6 +1557,18 @@ subroutine physics_state_alloc(state,lchnk,psetcols)
   allocate(state%s(psetcols,pver), stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%s')
 
+  allocate(state%sconvforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%sconvforce') ! conv_state_swap, added sweid
+  
+  allocate(state%uconvforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%uconvforce')
+
+  allocate(state%vconvforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%vconvforce')
+
+  allocate(state%qconvforce(psetcols,pver), stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%qconvforce') ! done add
+  
   allocate(state%sforce(psetcols,pver), stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%sforce') ! replay, added sweid
   
@@ -1648,10 +1664,16 @@ subroutine physics_state_alloc(state,lchnk,psetcols)
   state%u(:,:) = inf
   state%v(:,:) = inf
   state%s(:,:) = inf
-  state%sforce(:,:) = inf ! replay, added sweid
+
+  state%sconvforce(:,:) = inf ! replay + conv state swap, added sweid
+  state%uconvforce(:,:) = inf
+  state%vconvforce(:,:) = inf
+  state%qconvforce(:,:) = inf
+  state%sforce(:,:) = inf 
   state%uforce(:,:) = inf
   state%vforce(:,:) = inf
   state%qforce(:,:) = inf ! done add 
+  
   state%omega(:,:) = inf
   state%pmid(:,:) = inf
   state%pmiddry(:,:) = inf
@@ -1719,6 +1741,18 @@ subroutine physics_state_dealloc(state)
 
   deallocate(state%s, stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%s')
+
+  deallocate(state%sconvforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%sconvforce')
+
+  deallocate(state%uconvforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%uconvforce')
+
+  deallocate(state%vconvforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%vconvforce')
+
+  deallocate(state%qconvforce, stat=ierr)
+  if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%qconvforce')
 
   deallocate(state%sforce, stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%sforce')
