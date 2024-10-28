@@ -746,6 +746,7 @@ contains
     use cam_abortutils,     only: endrun
     use nudging,            only: Nudge_Model, nudging_init
     use corrector,          only: Force_Model, corrector_init
+    use conv_state_swap,    only: ConvStateSwap_Model, conv_state_swap_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -918,6 +919,9 @@ contains
     ! Initialize Corrector
     if(Force_Model) call corrector_init
 
+    ! Initialize Conv state swap
+    if(ConvStateSwap_Model) call conv_state_swap_init
+
     if (clim_modal_aero) then
 
        ! If climate calculations are affected by prescribed modal aerosols, the
@@ -955,6 +959,7 @@ contains
     use spcam_drivers,  only: tphysbc_spcam
     use spmd_utils,     only: mpicom
     use physics_buffer, only: physics_buffer_desc, pbuf_get_chunk, pbuf_allocate
+    use conv_state_swap,only: update_conv_state_swap_profile,ConvStateSwap_Model 
 #if (defined BFB_CAM_SCAM_IOP )
     use cam_history,    only: outfld
 #endif
@@ -1054,9 +1059,19 @@ contains
       call t_stopf ('diag_physvar_ic')
 
       if (use_spcam) then
+         if (ConvStateSwap_Model) then
+            if (masterproc) print*, "state before entering tphysbc_spcam", phys_state(c)%s(1,5)
+            call update_conv_state_swap_profile (ztodt, phys_state)
+         endif
+
         call tphysbc_spcam (ztodt, phys_state(c),     &
              phys_tend(c), phys_buffer_chunk, &
              cam_out(c), cam_in(c) )
+
+         if (ConvStateSwap_Model) then
+            if (masterproc) print*, "state after entering tphysbc_spcam", phys_state(c)%s(1,5)
+         endif
+
       else
         call tphysbc (ztodt, phys_state(c),           &
              phys_tend(c), phys_buffer_chunk, &
@@ -1096,6 +1111,9 @@ contains
     use carma_intr,      only: carma_accumulate_stats
     use spmd_utils,      only: mpicom
     use iop_forcing,     only: scam_use_iop_srf
+    use time_manager,       only: get_nstep
+    use corrector,          only: Force_Model,Force_ON, corrector_timestep_tend
+    use check_energy,       only: check_energy_chng 
 #if ( defined OFFLINE_DYN )
     use metdata,         only: get_met_srf2
 #endif
@@ -1119,6 +1137,9 @@ contains
     integer :: c                                 ! chunk index
     integer :: ncol                              ! number of columns
     type(physics_buffer_desc),pointer, dimension(:)     :: phys_buffer_chunk
+    type(physics_ptend)     :: ptend               ! indivdual parameterization tendencies
+    integer  :: nstep                              ! current timestep number
+    real(r8) :: zero(pcols)                        ! array of zeros
     !
     ! If exit condition just return
     !
@@ -1153,6 +1174,17 @@ contains
     call t_adj_detailf(+1)
 
 !$OMP PARALLEL DO PRIVATE (C, NCOL, phys_buffer_chunk)
+
+    ! Update Corrector values, if needed
+    !----------------------------------
+    if((Force_Model).and.(Force_ON)) then
+      nstep = get_nstep()
+      do c=begchunk,endchunk
+         call corrector_timestep_tend(phys_state(c),ptend)
+         call physics_update(phys_state(c),ptend,ztodt,phys_tend(c))
+         call check_energy_chng(phys_state(c), phys_tend(c), "corrector", nstep, ztodt, zero, zero, zero, zero)
+      end do
+    endif
 
     do c=begchunk,endchunk
        ncol = get_ncols_p(c)
@@ -1276,7 +1308,6 @@ contains
     use qneg_module,        only: qneg4
     use co2_cycle,          only: co2_cycle_set_ptend
     use nudging,            only: Nudge_Model,Nudge_ON,nudging_timestep_tend
-    use corrector,          only: Force_Model,Force_ON, corrector_timestep_tend 
 
     !
     ! Arguments
@@ -1551,14 +1582,7 @@ contains
       call physics_update(state,ptend,ztodt,tend)
       call check_energy_chng(state, tend, "nudging", nstep, ztodt, zero, zero, zero, zero)
     endif
-
-    ! Update Corrector values, if needed
-    !----------------------------------
-    if((Force_Model).and.(Force_ON)) then
-      call corrector_timestep_tend(state,ptend)
-      call physics_update(state,ptend,ztodt,tend)
-      call check_energy_chng(state, tend, "corrector", nstep, ztodt, zero, zero, zero, zero)
-    endif
+ 
 
     !-------------- Energy budget checks vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
