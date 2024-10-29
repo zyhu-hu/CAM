@@ -194,7 +194,7 @@ contains
     
     ! forcings added to fld list
     ! sweidman
-    call addfld ('SDIFF   ',(/ 'lev' /),'I','K       ', 'S diff')
+    call addfld ('SDIFF   ',(/ 'lev' /),'I','J/kg    ', 'S diff')
     call addfld ('UDIFF   ',(/ 'lev' /),'I','m/s     ', 'U diff')
     call addfld ('VDIFF   ',(/ 'lev' /),'I','m/s     ', 'V diff')
     call addfld ('QDIFF   ',(/ 'lev' /),'I','kg/kg   ', 'Q diff') ! phys_decomp?
