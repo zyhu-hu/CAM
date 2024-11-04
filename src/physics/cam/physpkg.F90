@@ -1071,17 +1071,12 @@ contains
 
       if (use_spcam) then
          if (ConvStateSwap_Model) then
-            if (masterproc) print*, "state before entering tphysbc_spcam", phys_state(c)%s(1,5)
             call update_conv_state_swap_profile (ztodt, phys_state)
          endif
 
         call tphysbc_spcam (ztodt, phys_state(c),     &
              phys_tend(c), phys_buffer_chunk, &
              cam_out(c), cam_in(c) )
-
-         if (ConvStateSwap_Model) then
-            if (masterproc) print*, "state after entering tphysbc_spcam", phys_state(c)%s(1,5)
-         endif
 
       else
         call tphysbc (ztodt, phys_state(c),           &
