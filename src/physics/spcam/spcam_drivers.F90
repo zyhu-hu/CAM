@@ -494,6 +494,9 @@ subroutine tphysbc_spcam (ztodt, state,   &
     call crm_physics_tend(ztodt, state, tend, ptend, pbuf, cam_in)
     call physics_update(state, ptend, ztodt, tend)
 
+    ! swap state after CRM
+    if (ConvStateSwap_Model) call conv_state_swap_out(ztodt, state,tend)
+
     !===================================================
     ! Moist physical parameteriztions complete:
     ! send dynamical variables, and derived variables to history file
@@ -563,9 +566,6 @@ subroutine tphysbc_spcam (ztodt, state,   &
     call physics_update(state, ptend, ztodt, tend)
 
     call check_energy_chng(state, tend, "spradheat", nstep, ztodt, zero, zero, zero, zero)
-
-    ! swap state before CRM
-    if (ConvStateSwap_Model) call conv_state_swap_out(ztodt, state,tend)
 
     call t_stopf('radiation')
 

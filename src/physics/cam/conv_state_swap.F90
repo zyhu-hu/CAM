@@ -519,7 +519,6 @@ contains
     call timemgr_time_ge(YMD1,ConvStateSwap_Next_Sec,            &
                         YMD ,ncsec           ,Update_ConvState)
 
-    if (masterproc) print*, 'YMD, YMD1', YMD,YMD1, Update_ConvState
     ! if time to read
     if (Update_ConvState) then
 
@@ -601,7 +600,7 @@ contains
  
     if (masterproc) then
     print*, "starting swap to convection state"
-    print*, state%sconvforce(1,5)*cpair ! lower number is higher level
+    !print*, state%sconvforce(1,5)*cpair ! lower number is higher level
     print*, state%s(1,5)
     !print*, state%uconvforce(1,5)
     !print*, state%u(1,5)
@@ -631,7 +630,7 @@ contains
 
     if (masterproc) then
       print*, "finished swap to convection state"
-      print*, state%sconvforce(1,5)*cpair
+      !print*, state%sconvforce(1,5)*cpair
       print*, state%s(1,5)
       !print*, state%uconvforce(1,5)
       !print*, state%u(1,5)
@@ -669,7 +668,7 @@ contains
  
     if (masterproc) then
     print*, "starting swap from convection state"
-    print*, state%sconvforce(1,5)*cpair ! lower number is higher level
+    !print*, state%sconvforce(1,5)*cpair ! lower number is higher level
     print*, state%s(1,5)
     !print*, state%uconvforce(1,5)
     !print*, state%u(1,5)
@@ -693,12 +692,6 @@ contains
     end do
     end do
 
-    if (masterproc) then
-      print*, "updated ptend"
-      print*, ptend%s(1,5)
-      print*, ptend%u(1,5)
-      print*, 'ztodt', ztodt
-    endif
  
     !apply tendencies to model
     call physics_update (state, ptend, ztodt, tend) ! this calls ptend deallocate
@@ -706,7 +699,7 @@ contains
 
     if (masterproc) then
       print*, "finished swap from convection state"
-      print*, state%sconvforce(1,5)*cpair
+      !print*, state%sconvforce(1,5)*cpair
       print*, state%s(1,5)
       !print*, state%uconvforce(1,5)
       !print*, state%u(1,5)
