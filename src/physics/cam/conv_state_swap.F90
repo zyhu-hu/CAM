@@ -139,7 +139,7 @@ contains
  
     ! Local values
     !----------------
-    integer  Year,Month,Day,Sec
+    integer  Year,Month,Day,Sec, Beg_Sec
     integer  YMD1,YMD
     integer  istat,lchnk,ncol,icol,ilev
     integer  hdim1_d,hdim2_d
@@ -149,6 +149,7 @@ contains
     ! Get the time step size
     !------------------------
     dtime = get_step_size()
+    Beg_sec = 0 ! run must start at midnight
  
     ! Allocate Space for corrector data arrays
     !-----------------------------------------
@@ -227,7 +228,7 @@ contains
                                       yr_spec=Year , &
                                       mon_spec=Month, &
                                       day_spec=Day  , &
-                                      sec_spec=Sec    )
+                                      sec_spec=Beg_Sec    )
 
     if(masterproc) then
     write(iulog,*) 'ConvStateSwap: Reading forcing:',trim(ConvStateSwap_Path)//trim(ConvStateSwap_File)
