@@ -214,7 +214,7 @@ OPTIONS
      -esmf_libdir <dir> Directory containing ESMF library and esmf.mk file.
      -fc <name>         User specified Fortran compiler.  Overrides Makefile default.
      -fc_type <name>    Type of Fortran compiler [pgi | intel | gnu | pathscale
-                        | ibm | nag].  This argument is used in conjunction
+                        | ibm | nag | intelgcc].  This argument is used in conjunction
                         with the -fc argument when the name of the fortran
                         compiler refers to a wrapper script (e.g., mpif90
                         or ftn).  In this case the user needs to specify
@@ -1689,6 +1689,7 @@ elsif ($fc =~ /^nag/)   { $fc_type = 'nag'; }
 elsif ($fc =~ /path/)   { $fc_type = 'pathscale'; }
 elsif ($fc =~ /gfort/)  { $fc_type = 'gnu'; }
 elsif ($fc =~ /xlf/)    { $fc_type = 'ibm'; }
+elsif ($fc =~ /intelgcc/) { $fc_type = 'intel'; }
 
 # User override for Fortran compiler type
 if (defined $opts{'fc_type'}) { $fc_type = $opts{'fc_type'}; }
@@ -1733,6 +1734,7 @@ if ($cc eq '') {
         elsif ($fc_type eq 'pathscale') { $cc = 'pathcc'; }
         elsif ($fc_type eq 'gnu')       { $cc = 'gcc'; }
         elsif ($fc_type eq 'ibm')       { $cc = 'xlc'; }
+        elsif ($fc_type eq 'intelgcc')  { $cc = 'gcc'; }
     }
 }
 
