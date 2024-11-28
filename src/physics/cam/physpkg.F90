@@ -779,29 +779,33 @@ contains
    integer :: unit
 
    unit = 20
-   print *, "Reading input from test_input.txt"
-   open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
-   do i = 1, size(input, 1)
-      read(unit,*) input(i,1)
-   end do
-   close(unit)
+   if (masterproc) then
 
-   use_gpu = 0 !module_use_device
+      write(iulog, *)  "Reading input from test_input.txt"
+      open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
+      do i = 1, size(input, 1)
+         read(unit,*) input(i,1)
+      end do
+      close(unit)
 
-   print *, "Creating input tensor"
-   call input_tensors%create
-   print *, "Adding input data"
-   call input_tensors%add_array(input)
-   print *, "Loading model"
-   call torch_mod%load("/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/final_hsr_wrapped.pt", use_gpu)
-   print *, "Running forward pass"
-   call torch_mod%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
-   print *, "Getting output data"
-   call out_tensor%to_array(output)
-   print *, "torch Output data:"
-   do i = 1, size(output, 1)
-      print *, output(i,1)
-   end do
+      use_gpu = 0 !module_use_device
+
+      write(iulog, *) "Creating input tensor"
+      call input_tensors%create
+      write(iulog, *) "Adding input data"
+      call input_tensors%add_array(input)
+      write(iulog, *) "Loading model"
+      call torch_mod%load("/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/final_hsr_wrapped.pt", use_gpu)
+      write(iulog, *) "Running forward pass"
+      call torch_mod%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+      write(iulog, *) "Getting output data"
+      call out_tensor%to_array(output)
+      write(iulog, *) "torch Output data:"
+      do i = 1, size(output, 1)
+         write(iulog, *) output(i,1)
+      end do
+
+   end if
 
     call physics_type_alloc(phys_state, phys_tend, begchunk, endchunk, pcols)
 
