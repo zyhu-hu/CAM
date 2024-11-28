@@ -35,6 +35,9 @@ module physpkg
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
 
+  use torch_ftn
+  use iso_fortran_env
+
   implicit none
   private
   save
@@ -760,6 +763,45 @@ contains
     integer :: ierr
 
     !-----------------------------------------------------------------------
+
+   integer :: n, i
+   integer :: use_gpu
+   type(torch_module) :: torch_mod
+   type(torch_tensor_wrap) :: input_tensors
+   type(torch_tensor) :: out_tensor
+
+   real(real32) :: input(124, 1)
+   real(real32), pointer :: output(:, :)
+
+   character(:), allocatable :: filename
+   character(len=50) :: outputfile
+   integer :: arglen, stat
+   integer :: unit
+
+   unit = 20
+   print *, "Reading input from test_input.txt"
+   open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
+   do i = 1, size(input, 1)
+      read(unit,*) input(i,1)
+   end do
+   close(unit)
+
+   use_gpu = 0 !module_use_device
+
+   print *, "Creating input tensor"
+   call input_tensors%create
+   print *, "Adding input data"
+   call input_tensors%add_array(input)
+   print *, "Loading model"
+   call torch_mod%load("/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/final_hsr_wrapped.pt", use_gpu)
+   print *, "Running forward pass"
+   call torch_mod%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+   print *, "Getting output data"
+   call out_tensor%to_array(output)
+   print *, "torch Output data:"
+   do i = 1, size(output, 1)
+      print *, output(i,1)
+   end do
 
     call physics_type_alloc(phys_state, phys_tend, begchunk, endchunk, pcols)
 
