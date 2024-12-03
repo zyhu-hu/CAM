@@ -763,8 +763,10 @@ contains
     integer :: ierr
 
     !-----------------------------------------------------------------------
+    integer :: n
 
-   integer :: n, i
+if (masterproc) then
+   integer :: i
    integer :: use_gpu
    type(torch_module) :: torch_mod
    type(torch_tensor_wrap) :: input_tensors
@@ -773,13 +775,13 @@ contains
    real(real32) :: input(124, 1)
    real(real32), pointer :: output(:, :)
 
-   character(:), allocatable :: filename
-   character(len=50) :: outputfile
-   integer :: arglen, stat
+   ! character(:), allocatable :: filename
+   ! character(len=50) :: outputfile
+   ! integer :: arglen, stat
    integer :: unit
 
    unit = 20
-   if (masterproc) then
+
 
       write(iulog, *)  "Reading input from test_input.txt"
       open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
