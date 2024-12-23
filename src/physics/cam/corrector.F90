@@ -250,7 +250,20 @@ module corrector
   real(r8),allocatable::Model_state_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Model_state_T     (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Model_state_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_QLIQ     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_QICE     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_OMEGA     (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Model_state_PS    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_SOLIN    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_LHFLX    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_SHFLX    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_SNOWHLND    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_PHIS    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_TAUX    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_TAUY    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_TS    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_ICEFRAC    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_LANDFRAC    (:,:)    !(pcols,begchunk:endchunk)
 
   ! corrector Observation Arrays
   !-----------------------------
@@ -975,6 +988,7 @@ contains
     use ppgrid       ,only: pver,pcols,begchunk,endchunk
     use filenames    ,only: interpret_filename_spec
     use ESMF
+    use camsrfexch     ,only: cam_in_t,cam_out_t
  
     ! Arguments
     !-----------
@@ -1387,7 +1401,8 @@ contains
     use ppgrid ,only: pver,begchunk,endchunk
     use netcdf
     use constituents ,only: cnst_get_ind
- 
+    use physics_types,only: physics_state
+    use camsrfexch     ,only: cam_in_t,cam_out_t
     ! Arguments
     !-------------
     character(len=*),intent(in):: anal_file
