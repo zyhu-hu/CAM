@@ -264,6 +264,10 @@ module corrector
   real(r8),allocatable::Model_state_TS    (:,:)    !(pcols,begchunk:endchunk)
   real(r8),allocatable::Model_state_ICEFRAC    (:,:)    !(pcols,begchunk:endchunk)
   real(r8),allocatable::Model_state_LANDFRAC    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_lat    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_lon    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_tod    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_toy    (:,:)    !(pcols,begchunk:endchunk)
 
   ! corrector Observation Arrays
   !-----------------------------
@@ -538,8 +542,43 @@ contains
    call alloc_err(istat,'corrector_init','Model_state_T',pcols*pver*((endchunk-begchunk)+1))
    allocate(Model_state_Q(pcols,pver,begchunk:endchunk),stat=istat)
    call alloc_err(istat,'corrector_init','Model_state_Q',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_QLIQ(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_QLIQ',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_QICE(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_QICE',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_OMEGA(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_OMEGA',pcols*pver*((endchunk-begchunk)+1))
    allocate(Model_state_PS(pcols,begchunk:endchunk),stat=istat)
    call alloc_err(istat,'corrector_init','Model_state_PS',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_SOLIN(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_SOLIN',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_LHFLX(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_LHFLX',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_SHFLX(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_SHFLX',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_SNOWHLND(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_SNOWHLND',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_PHIS(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_PHIS',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_TAUX(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_TAUX',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_TAUY(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_TAUY',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_TS(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_TS',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_ICEFRAC(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_ICEFRAC',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_LANDFRAC(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_LANDFRAC',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_lat(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_lat',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_lon(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_lon',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_tod(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_tod',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_toy(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'corrector_init','Model_state_toy',pcols*((endchunk-begchunk)+1))
+
 
    ! Allocate Space for spatial dependence of 
    ! corrector Coefs and corrector Forcing.
@@ -815,7 +854,26 @@ contains
       Model_state_V(:pcols,:pver,lchnk)=0._r8
       Model_state_T(:pcols,:pver,lchnk)=0._r8
       Model_state_Q(:pcols,:pver,lchnk)=0._r8
+      Model_state_QLIQ(:pcols,:pver,lchnk)=0._r8
+      Model_state_QICE(:pcols,:pver,lchnk)=0._r8
+      Model_state_OMEGA(:pcols,:pver,lchnk)=0._r8
+
       Model_state_PS(:pcols,lchnk)=0._r8
+      Model_state_SOLIN(:pcols,lchnk)=0._r8
+      Model_state_LHFLX(:pcols,lchnk)=0._r8
+      Model_state_SHFLX(:pcols,lchnk)=0._r8
+      Model_state_SNOWHLND(:pcols,lchnk)=0._r8
+      Model_state_PHIS(:pcols,lchnk)=0._r8
+      Model_state_TAUX(:pcols,lchnk)=0._r8
+      Model_state_TAUY(:pcols,lchnk)=0._r8
+      Model_state_TS(:pcols,lchnk)=0._r8
+      Model_state_ICEFRAC(:pcols,lchnk)=0._r8
+      Model_state_LANDFRAC(:pcols,lchnk)=0._r8
+      Model_state_lat(:pcols,lchnk)=0._r8
+      Model_state_lon(:pcols,lchnk)=0._r8
+      Model_state_tod(:pcols,lchnk)=0._r8
+      Model_state_toy(:pcols,lchnk)=0._r8
+
    end do
 
    ! End Routine
@@ -993,7 +1051,7 @@ contains
     ! Arguments
     !-----------
     type(physics_state),intent(in):: phys_state(begchunk:endchunk)
-    type(cam_in_t),intent(in):: cam_in
+    type(cam_in_t),intent(in):: cam_in(begchunk:endchunk)
  
     ! Local values
     !----------------
@@ -1406,7 +1464,7 @@ contains
     ! Arguments
     !-------------
     character(len=*),intent(in):: anal_file
-    type(physics_state), intent(in) :: phys_state
+    type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
     ! Local values
     !-------------
@@ -1424,13 +1482,12 @@ contains
     real(r8) Lon_anal(Force_nlon)
     real(r8) Xtrans(Force_nlon,Force_nlev,Force_nlat)
     integer  nn,Nindex
-    integer lchnk,ncol,indw
+    integer lchnk,ncol,indw, ixcldice,ixcldliq
     
-    lchnk = phys_state%lchnk
-    ncol  = phys_state%ncol
 
     call cnst_get_ind('Q',indw)
-
+    call cnst_get_ind('CLDICE', ixcldice)
+    call cnst_get_ind('CLDLIQ', ixcldliq)
     ! Rotate Force_ObsInd() indices, then check the existence of the analyses 
     ! file; broadcast the updated indices and file status to all the other MPI nodes. 
     ! If the file is not there, then just return.
@@ -1524,11 +1581,31 @@ contains
     
     ! Zeyuan Hu 12/23/2024: gather global state variables
     !---------------------------------------------------
-
-    Model_state_U(:ncol,:pver,lchnk)=phys_state%u(:ncol,:pver)
-    Model_state_V(:ncol,:pver,lchnk)=phys_state%v(:ncol,:pver)
-    Model_state_T(:ncol,:pver,lchnk)=phys_state%t(:ncol,:pver)
-    Model_state_Q(:ncol,:pver,lchnk)=phys_state%q(:ncol,:pver,indw)
+    do lchnk=begchunk,endchunk
+        ncol=phys_state(lchnk)%ncol
+        Model_state_U(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver)
+        Model_state_V(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver)
+        Model_state_T(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver)
+        Model_state_Q(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw)
+        Model_state_QLIQ(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,ixcldliq)
+        Model_state_QICE(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,ixcldice)
+        Model_state_OMEGA(:ncol,:pver,lchnk)=phys_state(lchnk)%omega(:ncol,:pver)
+        Model_state_PS(:ncol,lchnk)=phys_state(lchnk)%ps(:ncol)
+        Model_state_SOLIN(:ncol,lchnk)=0.0 ! Zeyuan Hu 12/23/2024: set to 0 for now
+        Model_state_LHFLX(:ncol,lchnk)=cam_in(lchnk)%lhf(:ncol)
+        Model_state_SHFLX(:ncol,lchnk)=cam_in(lchnk)%shf(:ncol)
+        Model_state_SNOWHLND(:ncol,lchnk)=cam_in(lchnk)%snowhland(:ncol)
+        Model_state_PHIS(:ncol,lchnk)=phys_state(lchnk)%phis(:ncol)
+        Model_state_TAUX(:ncol,lchnk)=cam_in(lchnk)%wsx(:ncol)
+        Model_state_TAUY(:ncol,lchnk)=cam_in(lchnk)%wsy(:ncol)
+        Model_state_TS(:ncol,lchnk)=cam_in(lchnk)%ts(:ncol)
+        Model_state_ICEFRAC(:ncol,lchnk)=cam_in(lchnk)%icefrac(:ncol)
+        Model_state_LANDFRAC(:ncol,lchnk)=cam_in(lchnk)%landfrac(:ncol)
+        Model_state_lat(:ncol)=phys_state(lchnk)%lat(:ncol)
+        Model_state_lon(:ncol)=phys_state(lchnk)%lon(:ncol)
+        Model_state_tod(:ncol)=Force_Curr_Sec/3600. ! in hours
+        Model_state_toy(:ncol)=Force_Curr_Day ! in day
+    end do
 
     call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_U,Xtrans)
     if (masterproc) then
