@@ -1134,7 +1134,7 @@ contains
       endif
  
         ! call corrector_update_analyses_fv (trim(Force_Path)//trim(Force_File))
-      call nncorrector_update(trim(Force_Path)//trim(Force_File), phys_state)
+      call nncorrector_update(trim(Force_Path)//trim(Force_File), phys_state, cam_in)
  
     endif ! ((Before_End).and.(Update_Force)) then
  
@@ -1449,7 +1449,7 @@ contains
   !================================================================
 
 
-  subroutine nncorrector_update(anal_file, phys_state)
+  subroutine nncorrector_update(anal_file, phys_state, cam_in)
     ! 
     ! nncorrector_UPDATE: 
     !                 generate NN predicted bias correctors of 
@@ -1465,6 +1465,7 @@ contains
     !-------------
     character(len=*),intent(in):: anal_file
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
+    type(cam_in_t),intent(in):: cam_in(begchunk:endchunk)
 
     ! Local values
     !-------------
@@ -1601,10 +1602,10 @@ contains
         Model_state_TS(:ncol,lchnk)=cam_in(lchnk)%ts(:ncol)
         Model_state_ICEFRAC(:ncol,lchnk)=cam_in(lchnk)%icefrac(:ncol)
         Model_state_LANDFRAC(:ncol,lchnk)=cam_in(lchnk)%landfrac(:ncol)
-        Model_state_lat(:ncol)=phys_state(lchnk)%lat(:ncol)
-        Model_state_lon(:ncol)=phys_state(lchnk)%lon(:ncol)
-        Model_state_tod(:ncol)=Force_Curr_Sec/3600. ! in hours
-        Model_state_toy(:ncol)=Force_Curr_Day ! in day
+        Model_state_lat(:ncol,lchnk)=phys_state(lchnk)%lat(:ncol)
+        Model_state_lon(:ncol,lchnk)=phys_state(lchnk)%lon(:ncol)
+        Model_state_tod(:ncol,lchnk)=Force_Curr_Sec/3600. ! in hours
+        Model_state_toy(:ncol,lchnk)=Force_Curr_Day ! in day
     end do
 
     call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_U,Xtrans)
