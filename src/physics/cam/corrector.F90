@@ -159,7 +159,7 @@ module corrector
   !------------------
   use shr_kind_mod,   only:r8=>SHR_KIND_R8,cs=>SHR_KIND_CS,cl=>SHR_KIND_CL
   use time_manager,   only:timemgr_time_ge,timemgr_time_inc,get_curr_date,get_step_size
-  use phys_grid   ,   only:scatter_field_to_chunk
+  use phys_grid   ,   only:scatter_field_to_chunk,gather_chunk_to_field
   use cam_abortutils, only:endrun
   use spmd_utils  ,   only:masterproc
   use cam_logfile ,   only:iulog
@@ -177,6 +177,7 @@ module corrector
   public:: corrector_readnl
   public:: corrector_init
   public:: corrector_timestep_init
+  public:: nncorrector_timestep_init
   public:: corrector_timestep_tend
   private::corrector_update_analyses_fv
   private::corrector_set_PSprofile
@@ -244,6 +245,12 @@ module corrector
   real(r8),allocatable:: Force_Sstep (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable:: Force_Qstep (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable:: Force_PSstep(:,:)    !(pcols,begchunk:endchunk)
+
+  real(r8),allocatable::Model_state_U     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_T     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_PS    (:,:)    !(pcols,begchunk:endchunk)
 
   ! corrector Observation Arrays
   !-----------------------------
@@ -509,6 +516,17 @@ contains
    call alloc_err(istat,'corrector_init','Target_Q',pcols*pver*((endchunk-begchunk)+1))
    allocate(Target_PS(pcols,begchunk:endchunk),stat=istat)
    call alloc_err(istat,'corrector_init','Target_PS',pcols*((endchunk-begchunk)+1))
+
+   allocate(Model_state_U(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Model_state_U',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_V(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Model_state_V',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_T(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Model_state_T',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_Q(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Model_state_Q',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_PS(pcols,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Model_state_PS',pcols*((endchunk-begchunk)+1))
 
    ! Allocate Space for spatial dependence of 
    ! corrector Coefs and corrector Forcing.
@@ -779,6 +797,12 @@ contains
      Target_S(:pcols,:pver,lchnk)=0._r8
      Target_Q(:pcols,:pver,lchnk)=0._r8
      Target_PS(:pcols,lchnk)=0._r8
+
+      Model_state_U(:pcols,:pver,lchnk)=0._r8
+      Model_state_V(:pcols,:pver,lchnk)=0._r8
+      Model_state_T(:pcols,:pver,lchnk)=0._r8
+      Model_state_Q(:pcols,:pver,lchnk)=0._r8
+      Model_state_PS(:pcols,lchnk)=0._r8
    end do
 
    ! End Routine
@@ -934,6 +958,154 @@ contains
   end subroutine ! corrector_timestep_init
   !================================================================
 
+!================================================================
+  subroutine nncorrector_timestep_init(phys_state, cam_in)
+    ! 
+    ! nncorrector_TIMESTEP_INIT: 
+    ! Zeyuan Hu 12/23/2024: 
+    !                 This subroutine is inherited from corrector_TIMESTEP_INIT subroutine to use the neural network to update bias correctors
+    !                 Check the current time and update corrector 
+    !                 arrays when necessary. Toggle the corrector flag
+    !                 when the time is withing the corrector window.
+    !===============================================================
+    use physconst    ,only: cpair
+    use physics_types,only: physics_state
+    use constituents ,only: cnst_get_ind
+    use dycore       ,only: dycore_is
+    use ppgrid       ,only: pver,pcols,begchunk,endchunk
+    use filenames    ,only: interpret_filename_spec
+    use ESMF
+ 
+    ! Arguments
+    !-----------
+    type(physics_state),intent(in):: phys_state(begchunk:endchunk)
+    type(cam_in_t),intent(in):: cam_in
+ 
+    ! Local values
+    !----------------
+    integer Year,Month,Day,Sec
+    integer YMD1,YMD2,YMD
+    logical Update_Force,Sync_Error
+    logical After_Beg   ,Before_End
+    integer lchnk,ncol,indw
+ 
+    type(ESMF_Time)         Date1,Date2
+    type(ESMF_TimeInterval) DateDiff
+    integer                 DeltaT
+    real(r8)                Tscale
+    real(r8)                Tfrac
+    integer                 rc
+    integer                 nn
+    integer                 kk
+    real(r8)                Sbar,Qbar,Wsum
+    integer                 dtime
+ 
+    ! Check if corrector is initialized
+    !---------------------------------
+    if(.not.Force_Initialized) then
+      call endrun('nncorrector_timestep_init:: corrector NOT Initialized')
+    endif
+ 
+    ! Get time step size
+    !--------------------
+    dtime = get_step_size()
+ 
+    ! Get Current time
+    !--------------------
+    call get_curr_date(Year,Month,Day,Sec)
+    YMD=(Year*10000) + (Month*100) + Day
+ 
+    !-------------------------------------------------------
+    ! Determine if the current time is AFTER the begining time
+    ! and if it is BEFORE the ending time.
+    !-------------------------------------------------------
+    YMD1=(Force_Beg_Year*10000) + (Force_Beg_Month*100) + Force_Beg_Day
+    call timemgr_time_ge(YMD1,Force_Beg_Sec,         &
+                         YMD ,Sec          ,After_Beg)
+ 
+    YMD1=(Force_End_Year*10000) + (Force_End_Month*100) + Force_End_Day
+    call timemgr_time_ge(YMD ,Sec,                    &
+                         YMD1,Force_End_Sec,Before_End)
+ 
+    !----------------------------------------------------------------
+    ! When past the NEXT time, Update corrector Arrays and time indices
+    !----------------------------------------------------------------
+    YMD1=(Force_Next_Year*10000) + (Force_Next_Month*100) + Force_Next_Day
+    call timemgr_time_ge(YMD1,Force_Next_Sec,            &
+                         YMD ,Sec           ,Update_Force)
+ 
+    if((Before_End).and.(Update_Force)) then
+ 
+      ! Increment the Force times by the current interval
+       !---------------------------------------------------
+       Force_Curr_Year =Force_Next_Year
+       Force_Curr_Month=Force_Next_Month
+       Force_Curr_Day  =Force_Next_Day
+       Force_Curr_Sec  =Force_Next_Sec
+       YMD1=(Force_Curr_Year*10000) + (Force_Curr_Month*100) + Force_Curr_Day
+       call timemgr_time_inc(YMD1,Force_Curr_Sec,              &
+                             YMD2,Force_Next_Sec,Force_Step,0,0)
+       Force_Next_Year =(YMD2/10000)
+       YMD2            = YMD2-(Force_Next_Year*10000)
+       Force_Next_Month=(YMD2/100)
+       Force_Next_Day  = YMD2-(Force_Next_Month*100)
+ 
+      ! Read the analysis file from the current timestep
+      !---------------------------------------------------------------
+      Force_File=interpret_filename_spec(Force_File_Template      , &
+                                          yr_spec=Force_Curr_Year , &
+                                         mon_spec=Force_Curr_Month, &
+                                         day_spec=Force_Curr_Day  , &
+                                         sec_spec=Force_Curr_Sec    )
+      if(masterproc) then
+       write(iulog,*) 'corrector: Reading forcing:',trim(Force_Path)//trim(Force_File)
+      endif
+ 
+        ! call corrector_update_analyses_fv (trim(Force_Path)//trim(Force_File))
+      call nncorrector_update(trim(Force_Path)//trim(Force_File), phys_state)
+ 
+    endif ! ((Before_End).and.(Update_Force)) then
+ 
+    !----------------------------------------------------------------
+    ! Toggle corrector flag when the time interval is between 
+    ! beginning and ending times, and all of the analyses files exist.
+    !----------------------------------------------------------------
+    if((After_Beg).and.(Before_End)) then
+        Force_ON=Force_File_Present
+      !Force_ON = .true. ! always turn on corrector when it is within the time window ! Zeyuan Hu 12/23/2024
+    else
+      Force_ON=.false.
+    endif
+ 
+    !---------------------------------------------------
+    ! If Data arrays have changed update stepping arrays
+    !---------------------------------------------------
+    if((Before_End).and.(Update_Force)) then
+ 
+      ! Update the corrector tendencies
+      !--------------------------------
+      do lchnk=begchunk,endchunk
+        ncol=phys_state(lchnk)%ncol
+        Force_Ustep(:ncol,:pver,lchnk)=Target_U(:ncol,:pver,lchnk)*Force_Utau(:ncol,:pver,lchnk)
+        Force_Vstep(:ncol,:pver,lchnk)=Target_V(:ncol,:pver,lchnk)*Force_Vtau(:ncol,:pver,lchnk)
+        Force_Sstep(:ncol,:pver,lchnk)=Target_S(:ncol,:pver,lchnk)*Force_Stau(:ncol,:pver,lchnk)
+        Force_Qstep(:ncol,:pver,lchnk)=Target_Q(:ncol,:pver,lchnk)*Force_Qtau(:ncol,:pver,lchnk)
+        Force_PSstep(:ncol,     lchnk)=Target_PS(:ncol,lchnk)*Force_PStau(:ncol,lchnk)
+      end do
+ 
+      if (masterproc) then
+         write(iulog,*)  'day, sec', Force_Curr_Day, Force_Curr_Sec
+         write(iulog,*) 'Force_Utau(1,20,1) = ', Force_Utau(1,20,begchunk)
+         write(iulog,*) 'Target_U(1,20,1) = ', Target_U(1,20,begchunk)
+         write(iulog,*) 'Force_Ustep(1,20,1) = ', Force_Ustep(1,20,begchunk)
+      end if
+ 
+    endif ! ((Before_End).and.(Update_Force)) then
+ 
+    ! End Routine
+    !------------
+    return
+   end subroutine ! nncorrector_timestep_init
 
   !================================================================
   subroutine corrector_timestep_tend(phys_state,phys_tend)
@@ -1204,6 +1376,300 @@ contains
   end subroutine ! corrector_update_analyses_fv
   !================================================================
 
+
+  subroutine nncorrector_update(anal_file, phys_state)
+    ! 
+    ! nncorrector_UPDATE: 
+    !                 generate NN predicted bias correctors of 
+    !                 U,V,T,Q, and PS values and then distribute
+    !                 the values to all of the chunks.
+    !===============================================================
+    use ppgrid ,only: pver,begchunk,endchunk
+    use netcdf
+    use constituents ,only: cnst_get_ind
+ 
+    ! Arguments
+    !-------------
+    character(len=*),intent(in):: anal_file
+    type(physics_state), intent(in) :: phys_state
+
+    ! Local values
+    !-------------
+    integer lev
+    integer nlon,nlat,plev,istat
+    integer ncid,varid
+    integer ilat,ilon,ilev
+    real(r8) Xanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) Uanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) Vanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) Tanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) Qanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) PSanal(Force_nlon,Force_nlat)
+    real(r8) Lat_anal(Force_nlat)
+    real(r8) Lon_anal(Force_nlon)
+    real(r8) Xtrans(Force_nlon,Force_nlev,Force_nlat)
+    integer  nn,Nindex
+    integer lchnk,ncol,indw
+    
+    lchnk = phys_state%lchnk
+    ncol  = phys_state%ncol
+
+    call cnst_get_ind('Q',indw)
+
+    ! Rotate Force_ObsInd() indices, then check the existence of the analyses 
+    ! file; broadcast the updated indices and file status to all the other MPI nodes. 
+    ! If the file is not there, then just return.
+    !------------------------------------------------------------------------
+    if(masterproc) then
+      inquire(FILE=trim(anal_file),EXIST=Force_File_Present)
+      write(iulog,*)'corrector: Force_File_Present=',Force_File_Present
+    endif
+ #ifdef SPMD
+    call mpibcast(Force_File_Present, 1, mpilog, 0, mpicom)
+ #endif
+    if(.not.Force_File_Present) return
+ 
+    ! masterporc does all of the work here
+    !-----------------------------------------
+    if(masterproc) then
+    
+      ! Open the given file
+      !-----------------------
+      istat=nf90_open(trim(anal_file),NF90_NOWRITE,ncid)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*)'NF90_OPEN: failed for file ',trim(anal_file)
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+ 
+      ! Read in Dimensions
+      !--------------------
+      istat=nf90_inq_dimid(ncid,'lon',varid)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+      istat=nf90_inquire_dimension(ncid,varid,len=nlon)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+ 
+      istat=nf90_inq_dimid(ncid,'lat',varid)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+      istat=nf90_inquire_dimension(ncid,varid,len=nlat)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+ 
+      istat=nf90_inq_dimid(ncid,'lev',varid)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+      istat=nf90_inquire_dimension(ncid,varid,len=plev)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+ 
+      istat=nf90_inq_varid(ncid,'lon',varid)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+      istat=nf90_get_var(ncid,varid,Lon_anal)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+ 
+      istat=nf90_inq_varid(ncid,'lat',varid)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+      istat=nf90_get_var(ncid,varid,Lat_anal)
+      if(istat.ne.NF90_NOERR) then
+        write(iulog,*) nf90_strerror(istat)
+        call endrun ('UPDATE_ANALYSES_FV')
+      endif
+ 
+      if((Force_nlon.ne.nlon).or.(Force_nlat.ne.nlat).or.(plev.ne.pver)) then
+       write(iulog,*) 'ERROR: corrector_update_analyses_fv: nlon=',nlon,' Force_nlon=',Force_nlon
+       write(iulog,*) 'ERROR: corrector_update_analyses_fv: nlat=',nlat,' Force_nlat=',Force_nlat
+       write(iulog,*) 'ERROR: corrector_update_analyses_fv: plev=',plev,' pver=',pver
+       call endrun('corrector_update_analyses_fv: analyses dimension mismatch')
+      endif
+    endif ! (masterproc) 
+    
+    ! Zeyuan Hu 12/23/2024: gather global state variables
+    !---------------------------------------------------
+
+    Model_state_U(:ncol,:pver,lchnk)=phys_state%u(:ncol,:pver)
+    Model_state_V(:ncol,:pver,lchnk)=phys_state%v(:ncol,:pver)
+    Model_state_T(:ncol,:pver,lchnk)=phys_state%t(:ncol,:pver)
+    Model_state_Q(:ncol,:pver,lchnk)=phys_state%q(:ncol,:pver,indw)
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_U,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        Uanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_V,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        Vanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_T,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        Tanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_Q,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        Qanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+    
+    ! a placeholder for now to set 0 for correctors and scatter to all chunks
+    Xtrans(:,:,:) = 0.0_r8
+    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+                                Target_U(1,1,begchunk))
+
+    Xtrans(:,:,:) = 0.0_r8
+    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+                                Target_V(1,1,begchunk))
+
+    Xtrans(:,:,:) = 0.0_r8
+    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+                                Target_S(1,1,begchunk))
+                          
+    Xtrans(:,:,:) = 0.0_r8
+    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+                                Target_Q(1,1,begchunk))
+    ! if (masterproc) then
+    !   ! Read in, transpose lat/lev indices, 
+    !   ! and scatter data arrays
+    !   !----------------------------------
+    !   istat=nf90_inq_varid(ncid,'UDIFF',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_get_var(ncid,varid,Xanal)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   do ilat=1,nlat
+    !   do ilev=1,plev
+    !   do ilon=1,nlon
+    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
+    !   end do
+    !   end do
+    !   end do
+    ! endif ! (masterproc) then
+    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+    !                             Target_U(1,1,begchunk))
+ 
+    ! if(masterproc) then
+    !   istat=nf90_inq_varid(ncid,'VDIFF',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_get_var(ncid,varid,Xanal)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   do ilat=1,nlat
+    !   do ilev=1,plev
+    !   do ilon=1,nlon
+    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
+    !   end do
+    !   end do
+    !   end do
+    ! endif ! (masterproc) then
+    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+    !                             Target_V(1,1,begchunk))
+ 
+    ! if(masterproc) then
+    !   istat=nf90_inq_varid(ncid,'SDIFF',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_get_var(ncid,varid,Xanal)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   do ilat=1,nlat
+    !   do ilev=1,plev
+    !   do ilon=1,nlon
+    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
+    !   end do
+    !   end do
+    !   end do
+    ! endif ! (masterproc) then
+    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+    !                             Target_S(1,1,begchunk))
+ 
+    ! if(masterproc) then
+    !   istat=nf90_inq_varid(ncid,'QDIFF',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_get_var(ncid,varid,Xanal)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   do ilat=1,nlat
+    !   do ilev=1,plev
+    !   do ilon=1,nlon
+    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
+    !   end do
+    !   end do
+    !   end do
+    ! endif ! (masterproc) then
+    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
+    !                             Target_Q(1,1,begchunk))
+ 
+    ! End Routine
+    !------------
+    return
+   end subroutine ! nncorrector_update
 
   !================================================================
   subroutine corrector_set_profile(rlat,rlon,Force_prof,Wprof,nlev)
