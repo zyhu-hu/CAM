@@ -166,6 +166,8 @@ module corrector
 #ifdef SPMD
   use mpishorthand
 #endif
+  use torch_ftn
+  use iso_fortran_env
 
   ! Set all Global values and routines to private by default 
   ! and then explicitly set their exposure.
@@ -272,6 +274,13 @@ module corrector
   ! corrector Observation Arrays
   !-----------------------------
   logical :: Force_File_Present
+
+  ! NN related variables
+  !---------------------
+  integer :: nn_inputlength  = 197     ! length of NN input vector
+  integer :: nn_outputlength = 104     ! length of NN output vector
+  character(len=256)    :: torch_model='/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swin_test_dim1024_depth8_v2_2nodes_r4.pt'
+  type(torch_module), allocatable :: torch_mod(:)
 
 contains
   !================================================================
@@ -1467,6 +1476,7 @@ contains
     use phys_grid,        only: get_rlat_all_p, get_rlon_all_p
     use cam_control_mod,  only: lambm0, obliqr, eccen, mvelpp
     use shr_orb_mod,      only: shr_orb_decl
+
     ! Arguments
     !-------------
     character(len=*),intent(in):: anal_file
@@ -1502,6 +1512,20 @@ contains
     real(r8) :: clon(pcols)  ! current longitudes(radians)
     real(r8), dimension(pcols,begchunk:endchunk) :: coszrs  ! Cosine solar zenith angle
     ! real(r8), dimension(pcols,begchunk:endchunk) :: solin   ! Insolation
+
+    integer :: n,i,j,k
+    integer :: use_gpu
+    type(torch_module) :: torch_mod
+    type(torch_tensor_wrap) :: input_tensors
+    type(torch_tensor) :: out_tensor
+    real(real32) :: input_torch(144, 96, nn_inputlength, 1)
+    real(real32), pointer :: output_torch(144, 96, nn_outputlength, 1)
+  
+    ! character(:), allocatable :: filename
+    ! character(len=50) :: outputfile
+    ! integer :: arglen, stat
+    integer :: unit
+
 
     pi = 3.14159265358979323846_r8
     call cnst_get_ind('Q',indw)
@@ -1634,10 +1658,12 @@ contains
       ! coszrs
       call get_rlat_all_p(lchnk, ncol, clat)
       call get_rlon_all_p(lchnk, ncol, clon)
-      call zenith(calday, clat, clon, coszrs(:,lchnk), ncol, dt_avg)
-      ! solin
       call shr_orb_decl(calday  ,eccen     ,mvelpp  ,lambm0  ,obliqr  , &
                         delta   ,eccf      )
+      ! call zenith(calday, clat, clon, coszrs(:,lchnk), ncol, dt_avg)
+      do i = 1, ncol
+        coszrs(i,lchnk) = shr_orb_cosz(calday, clat(i), clon(i), delta, dt_avg)
+      end do
       ! solin(:,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
       Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
     end do
@@ -1686,6 +1712,67 @@ contains
       end do
     endif ! (masterproc) then
     
+    ! collect and prepare the input data for the neural network
+
+    ! TODO here
+
+    ! run the NN inference
+    
+    ! do the torch inference    
+    input_torch(:,:,:,:) = 0.
+    call input_tensors%create
+    call input_tensors%add_array(input_torch)
+    call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+    call out_tensor%to_array(output_torch)
+      ! integer :: n
+
+      ! integer :: i
+      ! integer :: use_gpu
+      ! type(torch_module) :: torch_mod
+      ! type(torch_tensor_wrap) :: input_tensors
+      ! type(torch_tensor) :: out_tensor
+   
+      ! real(real32) :: input(124, 1)
+      ! real(real32), pointer :: output(:, :)
+   
+      ! ! character(:), allocatable :: filename
+      ! ! character(len=50) :: outputfile
+      ! ! integer :: arglen, stat
+      ! integer :: unit
+   
+      ! unit = 20
+   
+      !    if (masterproc) then
+      !       write(iulog, *)  "Reading input from test_input.txt"
+      !    end if
+      !    open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
+      !    do i = 1, size(input, 1)
+      !       read(unit,*) input(i,1)
+      !    end do
+      !    close(unit)
+   
+      !    use_gpu = 0 !module_use_device
+   
+      !    ! write(iulog, *) "Creating input tensor"
+      !    call input_tensors%create
+      !    ! write(iulog, *) "Adding input data"
+      !    call input_tensors%add_array(input)
+      !    ! write(iulog, *) "Loading model"
+      !    call torch_mod%load("/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/final_hsr_wrapped.pt", use_gpu)
+      !    ! write(iulog, *) "Running forward pass"
+      !    call torch_mod%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+      !    ! write(iulog, *) "Getting output data"
+      !    call out_tensor%to_array(output)
+         
+   
+      !    if (masterproc) then
+      !       write(iulog, *) "torch Output data:"
+      !       do i = 1, size(output, 1)
+      !          write(iulog, *) output(i,1)
+      !       end do
+      !    end if
+
+
     ! a placeholder for now to set 0 for correctors and scatter to all chunks
     Xtrans(:,:,:) = 0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
@@ -1797,6 +1884,18 @@ contains
     !------------
     return
    end subroutine ! nncorrector_update
+
+  subroutine init_neural_net()
+
+    implicit none
+
+    integer :: i, k
+
+    allocate(torch_mod (1))
+    call torch_mod(1)%load(trim(torch_model), 0) !0 is not using gpu, for now just use cpu for NN inference
+    !call torch_mod(1)%load(trim(cb_torch_model), module_use_device) will use gpu if available
+    
+  end subroutine init_neural_net
 
   !================================================================
   subroutine corrector_set_profile(rlat,rlon,Force_prof,Wprof,nlev)

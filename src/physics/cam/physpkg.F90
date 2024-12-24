@@ -35,8 +35,8 @@ module physpkg
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
 
-  use torch_ftn
-  use iso_fortran_env
+!   use torch_ftn
+!   use iso_fortran_env
 
   implicit none
   private
@@ -748,7 +748,7 @@ contains
     use dadadj_cam,         only: dadadj_init
     use cam_abortutils,     only: endrun
     use nudging,            only: Nudge_Model, nudging_init
-    use corrector,          only: Force_Model, corrector_init
+    use corrector,          only: Force_Model, corrector_init, init_neural_net
     use conv_state_swap,    only: ConvStateSwap_Model, conv_state_swap_init
 
     ! Input/output arguments
@@ -763,53 +763,6 @@ contains
     integer :: ierr
 
     !-----------------------------------------------------------------------
-    integer :: n
-
-   integer :: i
-   integer :: use_gpu
-   type(torch_module) :: torch_mod
-   type(torch_tensor_wrap) :: input_tensors
-   type(torch_tensor) :: out_tensor
-
-   real(real32) :: input(124, 1)
-   real(real32), pointer :: output(:, :)
-
-   ! character(:), allocatable :: filename
-   ! character(len=50) :: outputfile
-   ! integer :: arglen, stat
-   integer :: unit
-
-   unit = 20
-
-      if (masterproc) then
-         write(iulog, *)  "Reading input from test_input.txt"
-      end if
-      open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
-      do i = 1, size(input, 1)
-         read(unit,*) input(i,1)
-      end do
-      close(unit)
-
-      use_gpu = 0 !module_use_device
-
-      ! write(iulog, *) "Creating input tensor"
-      call input_tensors%create
-      ! write(iulog, *) "Adding input data"
-      call input_tensors%add_array(input)
-      ! write(iulog, *) "Loading model"
-      call torch_mod%load("/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/final_hsr_wrapped.pt", use_gpu)
-      ! write(iulog, *) "Running forward pass"
-      call torch_mod%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
-      ! write(iulog, *) "Getting output data"
-      call out_tensor%to_array(output)
-      
-
-      if (masterproc) then
-         write(iulog, *) "torch Output data:"
-         do i = 1, size(output, 1)
-            write(iulog, *) output(i,1)
-         end do
-      end if
 
     call physics_type_alloc(phys_state, phys_tend, begchunk, endchunk, pcols)
 
@@ -988,6 +941,9 @@ contains
 
     ! Initialize qneg3 and qneg4
     call qneg_init()
+
+    ! initialize the neural network (reading pt file) for NN corrector
+    if(Force_Model) call init_neural_net()
 
   end subroutine phys_init
 
