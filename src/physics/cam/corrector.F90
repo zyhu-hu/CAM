@@ -1456,11 +1456,17 @@ contains
     !                 U,V,T,Q, and PS values and then distribute
     !                 the values to all of the chunks.
     !===============================================================
-    use ppgrid ,only: pver,begchunk,endchunk
+    use ppgrid ,only: pver,pcols,begchunk,endchunk
     use netcdf
     use constituents ,only: cnst_get_ind
     use physics_types,only: physics_state
     use camsrfexch     ,only: cam_in_t,cam_out_t
+    use radconstants,     only: nswbands, get_ref_solar_band_irrad
+    use rad_solar_var,    only: get_variability
+    use time_manager,     only: get_curr_calday
+    use phys_grid,        only: get_rlat_all_p, get_rlon_all_p
+    use cam_control_mod,  only: lambm0, obliqr, eccen, mvelpp
+    use shr_orb_mod,      only: shr_orb_decl
     ! Arguments
     !-------------
     character(len=*),intent(in):: anal_file
@@ -1484,8 +1490,20 @@ contains
     real(r8) Xtrans(Force_nlon,Force_nlev,Force_nlat)
     integer  nn,Nindex
     integer lchnk,ncol,indw, ixcldice,ixcldliq
-    
+    real(r8) pi
 
+    real(r8) :: sfac(1:nswbands)  ! time varying scaling factors due to Solar Spectral Irrad at 1 A.U. per band
+    real(r8) :: solar_band_irrad(1:nswbands) ! rrtmg-assumed solar irradiance in each sw band
+    real(r8) :: delta    ! Solar declination angle  in radians
+    real(r8) :: dt_avg = 0.0_r8   ! time step to use for the shr_orb_cosz calculation, if use_rad_dt_cosz set to true
+    real(r8) :: eccf     ! Earth orbit eccentricity factor
+    real(r8) :: calday       ! current calendar day
+    real(r8) :: clat(pcols)  ! current latitudes(radians)
+    real(r8) :: clon(pcols)  ! current longitudes(radians)
+    real(r8), dimension(pcols,begchunk:endchunk) :: coszrs  ! Cosine solar zenith angle
+    ! real(r8), dimension(pcols,begchunk:endchunk) :: solin   ! Insolation
+
+    pi = 3.14159265358979323846_r8
     call cnst_get_ind('Q',indw)
     call cnst_get_ind('CLDICE', ixcldice)
     call cnst_get_ind('CLDLIQ', ixcldliq)
@@ -1592,7 +1610,7 @@ contains
         Model_state_QICE(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,ixcldice)
         Model_state_OMEGA(:ncol,:pver,lchnk)=phys_state(lchnk)%omega(:ncol,:pver)
         Model_state_PS(:ncol,lchnk)=phys_state(lchnk)%ps(:ncol)
-        Model_state_SOLIN(:ncol,lchnk)=0.0 ! Zeyuan Hu 12/23/2024: set to 0 for now
+        ! Model_state_SOLIN(:ncol,lchnk)=0.0 ! Zeyuan Hu 12/23/2024: set to 0 for now
         Model_state_LHFLX(:ncol,lchnk)=cam_in(lchnk)%lhf(:ncol)
         Model_state_SHFLX(:ncol,lchnk)=cam_in(lchnk)%shf(:ncol)
         Model_state_SNOWHLND(:ncol,lchnk)=cam_in(lchnk)%snowhland(:ncol)
@@ -1602,10 +1620,26 @@ contains
         Model_state_TS(:ncol,lchnk)=cam_in(lchnk)%ts(:ncol)
         Model_state_ICEFRAC(:ncol,lchnk)=cam_in(lchnk)%icefrac(:ncol)
         Model_state_LANDFRAC(:ncol,lchnk)=cam_in(lchnk)%landfrac(:ncol)
-        Model_state_lat(:ncol,lchnk)=phys_state(lchnk)%lat(:ncol)
-        Model_state_lon(:ncol,lchnk)=phys_state(lchnk)%lon(:ncol)
+        Model_state_lat(:ncol,lchnk)=phys_state(lchnk)%lat(:ncol)*(180./pi)
+        Model_state_lon(:ncol,lchnk)=phys_state(lchnk)%lon(:ncol)*(180./pi)
         Model_state_tod(:ncol,lchnk)=Force_Curr_Sec/3600. ! in hours
         Model_state_toy(:ncol,lchnk)=Force_Curr_Day ! in day
+    end do
+
+    call get_ref_solar_band_irrad( solar_band_irrad ) ! this can move to init subroutine
+    call get_variability(sfac)                        ! "
+    do lchnk=begchunk,endchunk
+      ncol = phys_state(lchnk)%ncol
+      calday = get_curr_calday() ! get current calendar day; no time offset as was in E3SM, need to double check!
+      ! coszrs
+      call get_rlat_all_p(lchnk, ncol, clat)
+      call get_rlon_all_p(lchnk, ncol, clon)
+      call zenith(calday, clat, clon, coszrs(:,lchnk), ncol, dt_avg)
+      ! solin
+      call shr_orb_decl(calday  ,eccen     ,mvelpp  ,lambm0  ,obliqr  , &
+                        delta   ,eccf      )
+      ! solin(:,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
+      Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
     end do
 
     call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_U,Xtrans)
