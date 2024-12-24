@@ -181,6 +181,7 @@ module corrector
   public:: corrector_timestep_init
   public:: nncorrector_timestep_init
   public:: corrector_timestep_tend
+  public:: init_neural_net
   private::corrector_update_analyses_fv
   private::corrector_set_PSprofile
   private::corrector_set_profile
