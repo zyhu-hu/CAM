@@ -1475,7 +1475,7 @@ contains
     use time_manager,     only: get_curr_calday
     use phys_grid,        only: get_rlat_all_p, get_rlon_all_p
     use cam_control_mod,  only: lambm0, obliqr, eccen, mvelpp
-    use shr_orb_mod,      only: shr_orb_decl
+    use shr_orb_mod,      only: shr_orb_decl, shr_orb_cosz
 
     ! Arguments
     !-------------
@@ -1514,12 +1514,10 @@ contains
     ! real(r8), dimension(pcols,begchunk:endchunk) :: solin   ! Insolation
 
     integer :: n,i,j,k
-    integer :: use_gpu
-    type(torch_module) :: torch_mod
     type(torch_tensor_wrap) :: input_tensors
     type(torch_tensor) :: out_tensor
     real(real32) :: input_torch(144, 96, nn_inputlength, 1)
-    real(real32), pointer :: output_torch(144, 96, nn_outputlength, 1)
+    real(real32), pointer :: output_torch(:, :, :, :)
   
     ! character(:), allocatable :: filename
     ! character(len=50) :: outputfile
