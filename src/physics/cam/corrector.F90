@@ -1484,6 +1484,29 @@ contains
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
     type(cam_in_t),intent(in):: cam_in(begchunk:endchunk)
 
+    ! real(r8),allocatable::Model_state_U     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_T     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_QLIQ     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_QICE     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_OMEGA     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_PS    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_SOLIN    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_LHFLX    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_SHFLX    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_SNOWHLND    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_PHIS    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_TAUX    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_TAUY    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_TS    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_ICEFRAC    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_LANDFRAC    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_lat    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_lon    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_tod    (:,:)    !(pcols,begchunk:endchunk)
+    ! real(r8),allocatable::Model_state_toy    (:,:)    !(pcols,begchunk:endchunk)
+
     ! Local values
     !-------------
     integer lev
@@ -1495,12 +1518,31 @@ contains
     real(r8) Vanal(Force_nlon,Force_nlat,Force_nlev)
     real(r8) Tanal(Force_nlon,Force_nlat,Force_nlev)
     real(r8) Qanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) QLIQanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) QICEanal(Force_nlon,Force_nlat,Force_nlev)
+    real(r8) OMEGAanal(Force_nlon,Force_nlat,Force_nlev)
     real(r8) PSanal(Force_nlon,Force_nlat)
+    real(r8) SOLINanal(Force_nlon,Force_nlat)
+    real(r8) LHFLXanal(Force_nlon,Force_nlat)
+    real(r8) SHFLXanal(Force_nlon,Force_nlat)
+    real(r8) SNOWHLNDanal(Force_nlon, Force_nlat)
+    real(r8) PHISanal(Force_nlon, Force_nlat)
+    real(r8) TAUXanal(Force_nlon, Force_nlat)
+    real(r8) TAUYanal(Force_nlon, Force_nlat)
+    real(r8) TSanal(Force_nlon, Force_nlat)
+    real(r8) ICEFRACanal(Force_nlon, Force_nlat)
+    real(r8) LANDFRACanal(Force_nlon, Force_nlat)
+    real(r8) tod_anal(Force_nlon, Force_nlat)
+    real(r8) toy_anal(Force_nlon, Force_nlat)
+    real(r8) clat_anal(Force_nlon, Force_nlat)
+    real(r8) clon_anal(Force_nlon, Force_nlat)
+
     real(r8) Lat_anal(Force_nlat)
     real(r8) Lon_anal(Force_nlon)
     real(r8) Xtrans(Force_nlon,Force_nlev,Force_nlat)
+    real(r8) Xtransf(1,Force_nlon,Force_nlat)
     integer  nn,Nindex
-    integer lchnk,ncol,indw, ixcldice,ixcldliq
+    integer  lchnk,ncol,indw, ixcldice,ixcldliq
     real(r8) pi
 
     real(r8) :: sfac(1:nswbands)  ! time varying scaling factors due to Solar Spectral Irrad at 1 A.U. per band
@@ -1710,15 +1752,210 @@ contains
       end do
       end do
     endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_QLIQ,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        QLIQanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_QICE,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        QICEanal(ilon,ilat,ilev)=Xtrans(ilon,ilat,ilev)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_OMEGA,Xtrans)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilev=1,plev
+      do ilon=1,nlon
+        OMEGAanal(ilon,ilat,ilev)=Xtrans(ilon,ilat,ilev)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_PS,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        PSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+    
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_SOLIN,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        SOLINanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_LHFLX,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        LHFLXanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_SHFLX,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        SHFLXanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_SNOWHLND,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        SNOWHLNDanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_PHIS,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        PHISanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_TAUX,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        TAUXanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_TAUY,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        TAUYanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_TS,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        TSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+    
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_ICEFRAC,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        ICEFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_LANDFRAC,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        LANDFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+    
+    ! call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_tod,Xtransf)
+    ! if (masterproc) then
+    !   do ilat=1,nlat
+    !   do ilon=1,nlon
+    !     tod_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+    !   end do
+    !   end do
+    ! endif ! (masterproc) then
+
+    ! call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_toy,Xtransf)
+    ! if (masterproc) then
+    !   do ilat=1,nlat
+    !   do ilon=1,nlon
+    !     toy_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+    !   end do
+    !   end do
+    ! endif ! (masterproc) then
+    tod_anal(:,:) = Force_Curr_Sec/3600. ! in hours
+    toy_anal(:,:) = Force_Curr_Day ! in day
+    
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_lat,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        clat_anal(ilon)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Force_nlon,Model_state_lon,Xtransf)
+    if (masterproc) then
+      do ilat=1,nlat
+      do ilon=1,nlon
+        clon_anal(ilon)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
     
     ! collect and prepare the input data for the neural network
+    if (masterproc) then   
+      do ilon=1,nlon
+        do ilat=1,nlat
 
-    ! TODO here
+          input_torch(ilon,ilat,0*plev+1:1*plev,1) = Tanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,1*plev+1:2*plev,1) = Qanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,2*plev+1:3*plev,1) = Uanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,3*plev+1:4*plev,1) = Vanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,4*plev+1:5*plev,1) = QLIQanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,5*plev+1:6*plev,1) = QICEanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,6*plev+1:7*plev,1) = OMEGAanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,7*plev+1,1) = PSanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+2,1) = SOLINanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+3,1) = LHFLXanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+4,1) = SHFLXanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+5,1) = SNOWHLNDanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+6,1) = PHISanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+7,1) = TAUXanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+8,1) = TAUYanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+9,1) = TSanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+10,1) = ICEFRACanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+11,1) = LANDFRACanal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+12,1) = clat_anal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+13,1) = clon_anal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+14,1) = tod_anal(ilon,ilat)
+          input_torch(ilon,ilat,7*plev+15,1) = toy_anal(ilon,ilat)
 
+        end do
+      end do
+    endif ! (masterproc) then
     ! run the NN inference
-    
-    ! do the torch inference    
-    input_torch(:,:,:,:) = 0.
+  
     call input_tensors%create
     call input_tensors%add_array(input_torch)
     call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
