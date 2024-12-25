@@ -1953,6 +1953,8 @@ contains
 
         end do
       end do
+    else
+      input_torch(:,:,:,:) = 0.0_r8
     endif ! (masterproc) then
     ! run the NN inference
   
@@ -2010,21 +2012,54 @@ contains
 
 
     ! a placeholder for now to set 0 for correctors and scatter to all chunks
-    Xtrans(:,:,:) = 0.0_r8
+    if (masterproc) then 
+      do ilat=1,nlat
+        do ilev=1,plev
+        do ilon=1,nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                                Target_U(1,1,begchunk))
+    Target_S(1,1,begchunk))
 
-    Xtrans(:,:,:) = 0.0_r8
+    if (masterproc) then 
+      do ilat=1,nlat
+        do ilev=1,plev
+        do ilon=1,nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,1*plev+ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                                Target_V(1,1,begchunk))
+    Target_Q(1,1,begchunk))
 
-    Xtrans(:,:,:) = 0.0_r8
+    if (masterproc) then 
+      do ilat=1,nlat
+        do ilev=1,plev
+        do ilon=1,nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,2*plev+ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                                Target_S(1,1,begchunk))
-                          
-    Xtrans(:,:,:) = 0.0_r8
+    Target_U(1,1,begchunk))
+
+    if (masterproc) then 
+      do ilat=1,nlat
+        do ilev=1,plev
+        do ilon=1,nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,4*plev+ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                                Target_Q(1,1,begchunk))
+    Target_V(1,1,begchunk))
+
     ! if (masterproc) then
     !   ! Read in, transpose lat/lev indices, 
     !   ! and scatter data arrays
