@@ -1909,7 +1909,7 @@ contains
     if (masterproc) then
       do ilat=1,nlat
       do ilon=1,nlon
-        clat_anal(ilon)=Xtransf(1,ilon,ilat)
+        clat_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
       end do
       end do
     endif ! (masterproc) then
@@ -1918,7 +1918,7 @@ contains
     if (masterproc) then
       do ilat=1,nlat
       do ilon=1,nlon
-        clon_anal(ilon)=Xtransf(1,ilon,ilat)
+        clon_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
       end do
       end do
     endif ! (masterproc) then
