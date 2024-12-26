@@ -1561,7 +1561,14 @@ contains
     type(torch_tensor) :: out_tensor
     real(real32) :: input_torch(144, 96, nn_inputlength, 1)
     real(real32), pointer :: output_torch(:, :, :, :)
-  
+    
+    ! Data arrays for output netcdf file
+    integer :: varid_input, varid_output
+    integer :: dimids_input(4), dimids_output(4)
+    integer :: retval
+    real, dimension(1, nn_inputlength, Force_nlat, Force_nlon) :: data_input
+    real, dimension(1, nn_outputlength, Force_nlat, Force_nlon) :: data_output
+    character(len=100) :: nc_filename
     ! character(:), allocatable :: filename
     ! character(len=50) :: outputfile
     ! integer :: arglen, stat
@@ -2059,7 +2066,71 @@ contains
     endif ! (masterproc) then
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_V(1,1,begchunk))
+    
+  if (masterproc) then  
+    ! output the data of input/output to a netcdf file
+    do i=1,nn_inputlength
+      do ilat=1,nlat
+        do ilon=1,nlon
+          data_input(1,i,ilat,ilon) = input_torch(ilon,ilat,i,1)
+        end do
+      end do
+    end do
 
+    do i=1,nn_outputlength
+      do ilat=1,nlat
+        do ilon=1,nlon
+          data_output(1,i,ilat,ilon) = output_torch(ilon,ilat,i,1)
+        end do
+      end do
+    end do
+
+      ! Create filename with time information
+    write(filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
+    "nn_verification_", Force_Curr_Year, "-", &
+    Force_Curr_Month, "-", Force_Curr_Day, "-", &
+    Force_Curr_Sec, ".nc"
+
+    print *, "Filename: ", trim(filename)
+
+    retval = nf90_create(trim(filename), nf90_clobber, ncid)
+    if (retval /= nf90_noerr) call handle_error(retval)
+
+  ! Define dimensions
+    retval = nf90_def_dim(ncid, "time", 1, dimids_input(1))
+    retval = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
+    retval = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
+    retval = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
+    if (retval /= nf90_noerr) call handle_error(retval)
+
+    dimids_output = dimids_input
+    dimids_output(2) = nf90_def_dim(ncid, "output_length", nn_outputlength, dimids_output(2))
+    if (retval /= nf90_noerr) call handle_error(retval)
+  
+    ! Define variables for input and output data
+    retval = nf90_def_var(ncid, "data_input", nf90_real, dimids_input, varid_input)
+    if (retval /= nf90_noerr) call handle_error(retval)
+    retval = nf90_def_var(ncid, "data_output", nf90_real, dimids_output, varid_output)
+    if (retval /= nf90_noerr) call handle_error(retval)
+
+  ! End define mode
+    retval = nf90_enddef(ncid)
+    if (retval /= nf90_noerr) call handle_error(retval)
+  
+    ! Write data
+    retval = nf90_put_var(ncid, varid_input, data_input)
+    if (retval /= nf90_noerr) call handle_error(retval)
+    retval = nf90_put_var(ncid, varid_output, data_output)
+    if (retval /= nf90_noerr) call handle_error(retval)
+  
+    ! Close file
+    retval = nf90_close(ncid)
+    if (retval /= nf90_noerr) call handle_error(retval)
+  
+    print *, "Successfully written input and output arrays to ", trim(filename)
+  
+  endif ! (masterproc) then
+    
     ! if (masterproc) then
     !   ! Read in, transpose lat/lev indices, 
     !   ! and scatter data arrays
