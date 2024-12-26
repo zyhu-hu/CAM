@@ -2094,9 +2094,9 @@ contains
     print *, "Filename: ", trim(nc_filename)
 
     ! Create NetCDF file
-  istat = nf90_create(trim(filename), nf90_clobber, ncid)
+  istat = nf90_create(trim(nc_filename), nf90_clobber, ncid)
   if (istat /= nf90_noerr) then
-    write(*, *) 'NF90_CREATE: failed for file ', trim(filename)
+    write(*, *) 'NF90_CREATE: failed for file ', trim(nc_filename)
     write(*, *) nf90_strerror(istat)
     call endrun('CREATE_NETCDF')
   endif
