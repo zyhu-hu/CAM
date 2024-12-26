@@ -2093,42 +2093,82 @@ contains
 
     print *, "Filename: ", trim(nc_filename)
 
-    retval = nf90_create(trim(nc_filename), nf90_clobber, ncid)
-    if (retval /= nf90_noerr) call handle_error(retval)
+    ! Create NetCDF file
+  istat = nf90_create(trim(filename), nf90_clobber, ncid)
+  if (istat /= nf90_noerr) then
+    write(*, *) 'NF90_CREATE: failed for file ', trim(filename)
+    write(*, *) nf90_strerror(istat)
+    call endrun('CREATE_NETCDF')
+  endif
+
 
   ! Define dimensions
-    retval = nf90_def_dim(ncid, "time", 1, dimids_input(1))
-    retval = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
-    retval = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
-    retval = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
-    if (retval /= nf90_noerr) call handle_error(retval)
+  istat = nf90_def_dim(ncid, "time", time_dim, dimids_input(1))
+  istat = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
+  istat = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
+  istat = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
+  if (istat /= nf90_noerr) then
+    write(*, *) 'NF90_DEF_DIM: failed'
+    write(*, *) nf90_strerror(istat)
+    call endrun('DEFINE_DIMENSIONS')
+  endif
 
     dimids_output = dimids_input
-    dimids_output(2) = nf90_def_dim(ncid, "output_length", nn_outputlength, dimids_output(2))
-    if (retval /= nf90_noerr) call handle_error(retval)
-  
-    ! Define variables for input and output data
-    retval = nf90_def_var(ncid, "data_input", nf90_real, dimids_input, varid_input)
-    if (retval /= nf90_noerr) call handle_error(retval)
-    retval = nf90_def_var(ncid, "data_output", nf90_real, dimids_output, varid_output)
-    if (retval /= nf90_noerr) call handle_error(retval)
+    istat = nf90_def_dim(ncid, "output_length", nn_outputlength, dimids_output(2))
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_DEF_DIM (output_length): failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('DEFINE_OUTPUT_DIMENSIONS')
+    endif
+      
+      ! Define variables for input and output data
+    istat = nf90_def_var(ncid, "data_input", nf90_real, dimids_input, varid_input)
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_DEF_VAR (data_input): failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('DEFINE_VAR_INPUT')
+    endif
 
-  ! End define mode
-    retval = nf90_enddef(ncid)
-    if (retval /= nf90_noerr) call handle_error(retval)
-  
+    istat = nf90_def_var(ncid, "data_output", nf90_real, dimids_output, varid_output)
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_DEF_VAR (data_output): failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('DEFINE_VAR_OUTPUT')
+    endif
+
+    ! End define mode
+    istat = nf90_enddef(ncid)
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_ENDDEF: failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('ENDDEF')
+    endif
+
     ! Write data
-    retval = nf90_put_var(ncid, varid_input, data_input)
-    if (retval /= nf90_noerr) call handle_error(retval)
-    retval = nf90_put_var(ncid, varid_output, data_output)
-    if (retval /= nf90_noerr) call handle_error(retval)
-  
+    istat = nf90_put_var(ncid, varid_input, data_input)
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_PUT_VAR (data_input): failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('PUT_VAR_INPUT')
+    endif
+
+    istat = nf90_put_var(ncid, varid_output, data_output)
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_PUT_VAR (data_output): failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('PUT_VAR_OUTPUT')
+    endif
+
     ! Close file
-    retval = nf90_close(ncid)
-    if (retval /= nf90_noerr) call handle_error(retval)
-  
-    print *, "Successfully written input and output arrays to ", trim(nc_filename)
-  
+    istat = nf90_close(ncid)
+    if (istat /= nf90_noerr) then
+      write(*, *) 'NF90_CLOSE: failed'
+      write(*, *) nf90_strerror(istat)
+      call endrun('CLOSE_NETCDF')
+    endif
+
+    print *, "Successfully written input and output arrays to ", trim(filename)
+
   endif ! (masterproc) then
 
     ! if (masterproc) then
