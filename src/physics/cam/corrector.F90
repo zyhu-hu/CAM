@@ -2103,7 +2103,7 @@ contains
 
 
   ! Define dimensions
-  istat = nf90_def_dim(ncid, "time", time_dim, dimids_input(1))
+  istat = nf90_def_dim(ncid, "time", 1, dimids_input(1))
   istat = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
   istat = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
   istat = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
@@ -2167,7 +2167,7 @@ contains
       call endrun('CLOSE_NETCDF')
     endif
 
-    print *, "Successfully written input and output arrays to ", trim(filename)
+    print *, "Successfully written input and output arrays to ", trim(nc_filename)
 
   endif ! (masterproc) then
 
