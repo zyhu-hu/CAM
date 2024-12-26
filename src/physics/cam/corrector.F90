@@ -1722,6 +1722,13 @@ contains
       Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
     end do
 
+    if (masterproc) then
+      ! printout sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
+      write(iulog,*) 'solar_in', sum(sfac(:)*solar_band_irrad(:)) * eccf
+      ! printout minimum and maximum of coszrs
+      write(iulog,*) 'coszrs min/max', minval(coszrs(:,begchunk)), maxval(coszrs(:,begchunk))
+    endif ! (masterproc) then
+
     call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_U,Xtrans)
     if (masterproc) then
       do ilat=1,nlat
@@ -2034,6 +2041,7 @@ contains
         end do
       end do
     endif ! (masterproc) then
+    Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_S(1,1,begchunk))
 
@@ -2046,6 +2054,7 @@ contains
         end do
       end do
     endif ! (masterproc) then
+    Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_Q(1,1,begchunk))
 
@@ -2058,6 +2067,7 @@ contains
         end do
       end do
     endif ! (masterproc) then
+      Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_U(1,1,begchunk))
 
@@ -2070,6 +2080,7 @@ contains
         end do
       end do
     endif ! (masterproc) then
+      Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_V(1,1,begchunk))
     
