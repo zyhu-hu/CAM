@@ -1179,6 +1179,7 @@ contains
     ! Update Corrector values, if needed
     !----------------------------------
     if((Force_Model).and.(Force_ON)) then
+      write(iulog,*) 'in physpkg, nncorrector: Force_ON', Force_ON, 'Force_Model', Force_Model
       nstep = get_nstep()
       do c=begchunk,endchunk
          call corrector_timestep_tend(phys_state(c),ptend)

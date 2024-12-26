@@ -1115,6 +1115,9 @@ contains
     YMD1=(Force_Next_Year*10000) + (Force_Next_Month*100) + Force_Next_Day
     call timemgr_time_ge(YMD1,Force_Next_Sec,            &
                          YMD ,Sec           ,Update_Force)
+
+    ! write out the current time and Update_Force
+    write(iulog,*) 'nncorrector beginning: YMD', YMD, 'Update_Force', Update_Force, 'After_Beg', After_Beg, 'Before_End', Before_End, 'Force_ON', Force_ON
  
     if((Before_End).and.(Update_Force)) then
  
@@ -1158,7 +1161,10 @@ contains
     else
       Force_ON=.false.
     endif
- 
+    
+    ! write out the current time and Update_Force
+    write(iulog,*) 'nncorrector after update: YMD', YMD, 'Update_Force', Update_Force, 'After_Beg', After_Beg, 'Before_End', Before_End, 'Force_ON', Force_ON
+
     !---------------------------------------------------
     ! If Data arrays have changed update stepping arrays
     !---------------------------------------------------
