@@ -2086,14 +2086,14 @@ contains
     end do
 
       ! Create filename with time information
-    write(filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
+    write(nc_filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
     "nn_verification_", Force_Curr_Year, "-", &
     Force_Curr_Month, "-", Force_Curr_Day, "-", &
     Force_Curr_Sec, ".nc"
 
-    print *, "Filename: ", trim(filename)
+    print *, "Filename: ", trim(nc_filename)
 
-    retval = nf90_create(trim(filename), nf90_clobber, ncid)
+    retval = nf90_create(trim(nc_filename), nf90_clobber, ncid)
     if (retval /= nf90_noerr) call handle_error(retval)
 
   ! Define dimensions
@@ -2127,10 +2127,10 @@ contains
     retval = nf90_close(ncid)
     if (retval /= nf90_noerr) call handle_error(retval)
   
-    print *, "Successfully written input and output arrays to ", trim(filename)
+    print *, "Successfully written input and output arrays to ", trim(nc_filename)
   
   endif ! (masterproc) then
-    
+
     ! if (masterproc) then
     !   ! Read in, transpose lat/lev indices, 
     !   ! and scatter data arrays
