@@ -1725,6 +1725,7 @@ contains
     if (masterproc) then
       ! printout sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
       write(iulog,*) 'solar_in', sum(sfac(:)*solar_band_irrad(:)), 'eccf', eccf
+      write(iulog,*) 'sfac', sfac(:), 'solar_band_irrad', solar_band_irrad(:)
       ! printout minimum and maximum of coszrs
       write(iulog,*) 'coszrs min/max', minval(coszrs(:,begchunk)), maxval(coszrs(:,begchunk))
     endif ! (masterproc) then
