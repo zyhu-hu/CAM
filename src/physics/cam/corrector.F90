@@ -1799,7 +1799,7 @@ contains
       do ilat=1,nlat
       do ilev=1,plev
       do ilon=1,nlon
-        QICEanal(ilon,ilat,ilev)=Xtrans(ilon,ilat,ilev)
+        QICEanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
       end do
       end do
       end do
@@ -1810,7 +1810,7 @@ contains
       do ilat=1,nlat
       do ilev=1,plev
       do ilon=1,nlon
-        OMEGAanal(ilon,ilat,ilev)=Xtrans(ilon,ilat,ilev)
+        OMEGAanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
       end do
       end do
       end do
