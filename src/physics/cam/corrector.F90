@@ -1483,6 +1483,8 @@ contains
     use phys_grid,        only: get_rlat_all_p, get_rlon_all_p
     use cam_control_mod,  only: lambm0, obliqr, eccen, mvelpp
     use shr_orb_mod,      only: shr_orb_decl, shr_orb_cosz
+    use solar_irrad_data, only: sol_tsi
+    use orbit,               only: zenith
 
     ! Arguments
     !-------------
@@ -1579,7 +1581,7 @@ contains
     ! character(len=50) :: outputfile
     ! integer :: arglen, stat
     integer :: unit
-
+    real(r8) :: tot_irrad
 
     pi = 3.14159265358979323846_r8
     call cnst_get_ind('Q',indw)
@@ -1704,7 +1706,8 @@ contains
         Model_state_toy(:ncol,lchnk)=Force_Curr_Day ! in day
     end do
 
-    call get_ref_solar_band_irrad( solar_band_irrad ) ! this can move to init subroutine
+    ! call get_ref_solar_band_irrad( solar_band_irrad ) ! this can move to init subroutine
+    tot_irrad = sol_tsi
     call get_variability(sfac)                        ! "
     do lchnk=begchunk,endchunk
       ncol = phys_state(lchnk)%ncol
@@ -1715,17 +1718,20 @@ contains
       call shr_orb_decl(calday  ,eccen     ,mvelpp  ,lambm0  ,obliqr  , &
                         delta   ,eccf      )
       ! call zenith(calday, clat, clon, coszrs(:,lchnk), ncol, dt_avg)
-      do i = 1, ncol
-        coszrs(i,lchnk) = shr_orb_cosz(calday, clat(i), clon(i), delta, dt_avg)
-      end do
+      ! do i = 1, ncol
+      !   ! coszrs(i,lchnk) = shr_orb_cosz(calday, clat(i), clon(i), delta, dt_avg)
+      ! end do
+      call zenith (calday, clat, clon, coszrs(:,lchnk), ncol, dt_avg)
       ! solin(:,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
-      Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
+      !Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
+      Model_state_SOLIN(:ncol,lchnk) = tot_irrad*1.e3_r8*eccf*coszrs(:,lchnk)
     end do
 
     if (masterproc) then
       ! printout sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
-      write(iulog,*) 'solar_in', sum(sfac(:)*solar_band_irrad(:)), 'eccf', eccf
-      write(iulog,*) 'sfac', sfac(:), 'solar_band_irrad', solar_band_irrad(:)
+      ! write(iulog,*) 'solar_in', sum(sfac(:)*solar_band_irrad(:)), 'eccf', eccf
+      ! write(iulog,*) 'sfac', sfac(:), 'solar_band_irrad', solar_band_irrad(:)
+      write(iulog,*) 'tot_irrad', tot_irrad*1.e3_r8, 'eccf', eccf
       ! printout minimum and maximum of coszrs
       write(iulog,*) 'coszrs min/max', minval(coszrs(:,begchunk)), maxval(coszrs(:,begchunk))
     endif ! (masterproc) then
