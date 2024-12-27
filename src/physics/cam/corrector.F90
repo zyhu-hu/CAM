@@ -1117,7 +1117,7 @@ contains
                          YMD ,Sec           ,Update_Force)
 
     ! write out the current time and Update_Force
-    write(iulog,*) 'nncorrector beginning: YMD', YMD, 'Update_Force', Update_Force, 'After_Beg', After_Beg, 'Before_End', Before_End, 'Force_ON', Force_ON
+    ! write(iulog,*) 'nncorrector beginning: YMD', YMD, 'Update_Force', Update_Force, 'After_Beg', After_Beg, 'Before_End', Before_End, 'Force_ON', Force_ON
  
     if((Before_End).and.(Update_Force)) then
  
@@ -1163,7 +1163,7 @@ contains
     endif
     
     ! write out the current time and Update_Force
-    write(iulog,*) 'nncorrector after update: YMD', YMD, 'Update_Force', Update_Force, 'After_Beg', After_Beg, 'Before_End', Before_End, 'Force_ON', Force_ON
+    ! write(iulog,*) 'nncorrector after update: YMD', YMD, 'Update_Force', Update_Force, 'After_Beg', After_Beg, 'Before_End', Before_End, 'Force_ON', Force_ON
 
     !---------------------------------------------------
     ! If Data arrays have changed update stepping arrays
@@ -1582,6 +1582,7 @@ contains
     ! integer :: arglen, stat
     integer :: unit
     real(r8) :: tot_irrad
+    logical  :: NN_Data_Save       =.false.
 
     pi = 3.14159265358979323846_r8
     call cnst_get_ind('Q',indw)
@@ -1730,14 +1731,14 @@ contains
       end do
     end do
 
-    if (masterproc) then
-      ! printout sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
-      ! write(iulog,*) 'solar_in', sum(sfac(:)*solar_band_irrad(:)), 'eccf', eccf
-      ! write(iulog,*) 'sfac', sfac(:), 'solar_band_irrad', solar_band_irrad(:)
-      write(iulog,*) 'tot_irrad', tot_irrad*1.e3_r8, 'eccf', eccf
-      ! printout minimum and maximum of coszrs
-      write(iulog,*) 'coszrs min/max', minval(coszrs(:,begchunk)), maxval(coszrs(:,begchunk))
-    endif ! (masterproc) then
+    ! if (masterproc) then
+    !   ! printout sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
+    !   ! write(iulog,*) 'solar_in', sum(sfac(:)*solar_band_irrad(:)), 'eccf', eccf
+    !   ! write(iulog,*) 'sfac', sfac(:), 'solar_band_irrad', solar_band_irrad(:)
+    !   write(iulog,*) 'tot_irrad', tot_irrad*1.e3_r8, 'eccf', eccf
+    !   ! printout minimum and maximum of coszrs
+    !   write(iulog,*) 'coszrs min/max', minval(coszrs(:,begchunk)), maxval(coszrs(:,begchunk))
+    ! endif ! (masterproc) then
 
     call gather_chunk_to_field(1,Force_nlev,1,Force_nlon,Model_state_U,Xtrans)
     if (masterproc) then
@@ -1992,56 +1993,8 @@ contains
     call input_tensors%add_array(input_torch)
     call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
     call out_tensor%to_array(output_torch)
-      ! integer :: n
 
-      ! integer :: i
-      ! integer :: use_gpu
-      ! type(torch_module) :: torch_mod
-      ! type(torch_tensor_wrap) :: input_tensors
-      ! type(torch_tensor) :: out_tensor
-   
-      ! real(real32) :: input(124, 1)
-      ! real(real32), pointer :: output(:, :)
-   
-      ! ! character(:), allocatable :: filename
-      ! ! character(len=50) :: outputfile
-      ! ! integer :: arglen, stat
-      ! integer :: unit
-   
-      ! unit = 20
-   
-      !    if (masterproc) then
-      !       write(iulog, *)  "Reading input from test_input.txt"
-      !    end if
-      !    open(unit=unit, file="/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/test_input.txt", status="old", action="read")
-      !    do i = 1, size(input, 1)
-      !       read(unit,*) input(i,1)
-      !    end do
-      !    close(unit)
-   
-      !    use_gpu = 0 !module_use_device
-   
-      !    ! write(iulog, *) "Creating input tensor"
-      !    call input_tensors%create
-      !    ! write(iulog, *) "Adding input data"
-      !    call input_tensors%add_array(input)
-      !    ! write(iulog, *) "Loading model"
-      !    call torch_mod%load("/n/home00/zeyuanhu/spcam_ml_sourcemode/test_files/final_hsr_wrapped.pt", use_gpu)
-      !    ! write(iulog, *) "Running forward pass"
-      !    call torch_mod%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
-      !    ! write(iulog, *) "Getting output data"
-      !    call out_tensor%to_array(output)
-         
-   
-      !    if (masterproc) then
-      !       write(iulog, *) "torch Output data:"
-      !       do i = 1, size(output, 1)
-      !          write(iulog, *) output(i,1)
-      !       end do
-      !    end if
-
-
-    ! a placeholder for now to set 0 for correctors and scatter to all chunks
+    ! mapping nn output to the forcing arrays 
     if (masterproc) then 
       do ilat=1,nlat
         do ilev=1,plev
@@ -2051,7 +2004,6 @@ contains
         end do
       end do
     endif ! (masterproc) then
-    Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_S(1,1,begchunk))
 
@@ -2064,7 +2016,6 @@ contains
         end do
       end do
     endif ! (masterproc) then
-    Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_Q(1,1,begchunk))
 
@@ -2077,7 +2028,6 @@ contains
         end do
       end do
     endif ! (masterproc) then
-      Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_U(1,1,begchunk))
 
@@ -2090,205 +2040,115 @@ contains
         end do
       end do
     endif ! (masterproc) then
-      Xtrans(:,:,:)=0.0_r8
     call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
     Target_V(1,1,begchunk))
-    
-  if (masterproc) then  
-    ! output the data of input/output to a netcdf file
-    do i=1,nn_inputlength
-      do ilat=1,nlat
-        do ilon=1,nlon
-          data_input(1,i,ilat,ilon) = input_torch(ilon,ilat,i,1)
+  
+  ! saving NN input and output arrays to a netcdf file if NN_Data_Save is true
+  if (NN_Data_Save) then
+    if (masterproc) then  
+      ! output the data of input/output to a netcdf file
+      do i=1,nn_inputlength
+        do ilat=1,nlat
+          do ilon=1,nlon
+            data_input(1,i,ilat,ilon) = input_torch(ilon,ilat,i,1)
+          end do
         end do
       end do
-    end do
 
-    do i=1,nn_outputlength
-      do ilat=1,nlat
-        do ilon=1,nlon
-          data_output(1,i,ilat,ilon) = output_torch(ilon,ilat,i,1)
+      do i=1,nn_outputlength
+        do ilat=1,nlat
+          do ilon=1,nlon
+            data_output(1,i,ilat,ilon) = output_torch(ilon,ilat,i,1)
+          end do
         end do
       end do
-    end do
 
-      ! Create filename with time information
-    write(nc_filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
-    "nn_verification_", Force_Curr_Year, "-", &
-    Force_Curr_Month, "-", Force_Curr_Day, "-", &
-    Force_Curr_Sec, ".nc"
+        ! Create filename with time information
+      write(nc_filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
+      "nn_verification_", Force_Curr_Year, "-", &
+      Force_Curr_Month, "-", Force_Curr_Day, "-", &
+      Force_Curr_Sec, ".nc"
 
-    print *, "Filename: ", trim(nc_filename)
+      print *, "Filename: ", trim(nc_filename)
 
-    ! Create NetCDF file
-  istat = nf90_create(trim(nc_filename), nf90_clobber, ncid)
-  if (istat /= nf90_noerr) then
-    write(*, *) 'NF90_CREATE: failed for file ', trim(nc_filename)
-    write(*, *) nf90_strerror(istat)
-    call endrun('CREATE_NETCDF')
-  endif
-
-
-  ! Define dimensions
-  istat = nf90_def_dim(ncid, "time", 1, dimids_input(1))
-  istat = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
-  istat = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
-  istat = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
-  if (istat /= nf90_noerr) then
-    write(*, *) 'NF90_DEF_DIM: failed'
-    write(*, *) nf90_strerror(istat)
-    call endrun('DEFINE_DIMENSIONS')
-  endif
-
-    dimids_output = dimids_input
-    istat = nf90_def_dim(ncid, "output_length", nn_outputlength, dimids_output(2))
+      ! Create NetCDF file
+    istat = nf90_create(trim(nc_filename), nf90_clobber, ncid)
     if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_DEF_DIM (output_length): failed'
+      write(*, *) 'NF90_CREATE: failed for file ', trim(nc_filename)
       write(*, *) nf90_strerror(istat)
-      call endrun('DEFINE_OUTPUT_DIMENSIONS')
-    endif
-      
-      ! Define variables for input and output data
-    istat = nf90_def_var(ncid, "data_input", nf90_real, dimids_input, varid_input)
-    if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_DEF_VAR (data_input): failed'
-      write(*, *) nf90_strerror(istat)
-      call endrun('DEFINE_VAR_INPUT')
+      call endrun('CREATE_NETCDF')
     endif
 
-    istat = nf90_def_var(ncid, "data_output", nf90_real, dimids_output, varid_output)
+
+    ! Define dimensions
+    istat = nf90_def_dim(ncid, "time", 1, dimids_input(1))
+    istat = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
+    istat = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
+    istat = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
     if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_DEF_VAR (data_output): failed'
+      write(*, *) 'NF90_DEF_DIM: failed'
       write(*, *) nf90_strerror(istat)
-      call endrun('DEFINE_VAR_OUTPUT')
+      call endrun('DEFINE_DIMENSIONS')
     endif
 
-    ! End define mode
-    istat = nf90_enddef(ncid)
-    if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_ENDDEF: failed'
-      write(*, *) nf90_strerror(istat)
-      call endrun('ENDDEF')
-    endif
+      dimids_output = dimids_input
+      istat = nf90_def_dim(ncid, "output_length", nn_outputlength, dimids_output(2))
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_DEF_DIM (output_length): failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('DEFINE_OUTPUT_DIMENSIONS')
+      endif
+        
+        ! Define variables for input and output data
+      istat = nf90_def_var(ncid, "data_input", nf90_real, dimids_input, varid_input)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_DEF_VAR (data_input): failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('DEFINE_VAR_INPUT')
+      endif
 
-    ! Write data
-    istat = nf90_put_var(ncid, varid_input, data_input)
-    if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_PUT_VAR (data_input): failed'
-      write(*, *) nf90_strerror(istat)
-      call endrun('PUT_VAR_INPUT')
-    endif
+      istat = nf90_def_var(ncid, "data_output", nf90_real, dimids_output, varid_output)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_DEF_VAR (data_output): failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('DEFINE_VAR_OUTPUT')
+      endif
 
-    istat = nf90_put_var(ncid, varid_output, data_output)
-    if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_PUT_VAR (data_output): failed'
-      write(*, *) nf90_strerror(istat)
-      call endrun('PUT_VAR_OUTPUT')
-    endif
+      ! End define mode
+      istat = nf90_enddef(ncid)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_ENDDEF: failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('ENDDEF')
+      endif
 
-    ! Close file
-    istat = nf90_close(ncid)
-    if (istat /= nf90_noerr) then
-      write(*, *) 'NF90_CLOSE: failed'
-      write(*, *) nf90_strerror(istat)
-      call endrun('CLOSE_NETCDF')
-    endif
+      ! Write data
+      istat = nf90_put_var(ncid, varid_input, data_input)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_PUT_VAR (data_input): failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('PUT_VAR_INPUT')
+      endif
 
-    print *, "Successfully written input and output arrays to ", trim(nc_filename)
+      istat = nf90_put_var(ncid, varid_output, data_output)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_PUT_VAR (data_output): failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('PUT_VAR_OUTPUT')
+      endif
 
-  endif ! (masterproc) then
+      ! Close file
+      istat = nf90_close(ncid)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_CLOSE: failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('CLOSE_NETCDF')
+      endif
 
-    ! if (masterproc) then
-    !   ! Read in, transpose lat/lev indices, 
-    !   ! and scatter data arrays
-    !   !----------------------------------
-    !   istat=nf90_inq_varid(ncid,'UDIFF',varid)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   istat=nf90_get_var(ncid,varid,Xanal)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   do ilat=1,nlat
-    !   do ilev=1,plev
-    !   do ilon=1,nlon
-    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
-    !   end do
-    !   end do
-    !   end do
-    ! endif ! (masterproc) then
-    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-    !                             Target_U(1,1,begchunk))
- 
-    ! if(masterproc) then
-    !   istat=nf90_inq_varid(ncid,'VDIFF',varid)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   istat=nf90_get_var(ncid,varid,Xanal)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   do ilat=1,nlat
-    !   do ilev=1,plev
-    !   do ilon=1,nlon
-    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
-    !   end do
-    !   end do
-    !   end do
-    ! endif ! (masterproc) then
-    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-    !                             Target_V(1,1,begchunk))
- 
-    ! if(masterproc) then
-    !   istat=nf90_inq_varid(ncid,'SDIFF',varid)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   istat=nf90_get_var(ncid,varid,Xanal)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   do ilat=1,nlat
-    !   do ilev=1,plev
-    !   do ilon=1,nlon
-    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
-    !   end do
-    !   end do
-    !   end do
-    ! endif ! (masterproc) then
-    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-    !                             Target_S(1,1,begchunk))
- 
-    ! if(masterproc) then
-    !   istat=nf90_inq_varid(ncid,'QDIFF',varid)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   istat=nf90_get_var(ncid,varid,Xanal)
-    !   if(istat.ne.NF90_NOERR) then
-    !     write(iulog,*) nf90_strerror(istat)
-    !     call endrun ('UPDATE_ANALYSES_FV')
-    !   endif
-    !   do ilat=1,nlat
-    !   do ilev=1,plev
-    !   do ilon=1,nlon
-    !     Xtrans(ilon,ilev,ilat)=Xanal(ilon,ilat,ilev)
-    !   end do
-    !   end do
-    !   end do
-    ! endif ! (masterproc) then
-    ! call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-    !                             Target_Q(1,1,begchunk))
- 
+      print *, "Successfully written input and output arrays to ", trim(nc_filename)
+
+    endif ! (masterproc) then
+  endif ! (NN_Data_Save) then
     ! End Routine
     !------------
     return
