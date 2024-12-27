@@ -1593,8 +1593,9 @@ contains
     ! If the file is not there, then just return.
     !------------------------------------------------------------------------
     if(masterproc) then
-      inquire(FILE=trim(anal_file),EXIST=Force_File_Present)
-      write(iulog,*)'corrector: Force_File_Present=',Force_File_Present
+      ! inquire(FILE=trim(anal_file),EXIST=Force_File_Present)
+      ! write(iulog,*)'corrector: Force_File_Present=',Force_File_Present
+      Force_File_Present = .true. ! Zeyuan Hu 12/23/2024 to avoid error
     endif
  #ifdef SPMD
     call mpibcast(Force_File_Present, 1, mpilog, 0, mpicom)
@@ -1603,81 +1604,85 @@ contains
  
     ! masterporc does all of the work here
     !-----------------------------------------
-    if(masterproc) then
+    ! if(masterproc) then
     
-      ! Open the given file
-      !-----------------------
-      istat=nf90_open(trim(anal_file),NF90_NOWRITE,ncid)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*)'NF90_OPEN: failed for file ',trim(anal_file)
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
+    !   ! Open the given file
+    !   !-----------------------
+    !   istat=nf90_open(trim(anal_file),NF90_NOWRITE,ncid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*)'NF90_OPEN: failed for file ',trim(anal_file)
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
  
-      ! Read in Dimensions
-      !--------------------
-      istat=nf90_inq_dimid(ncid,'lon',varid)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
-      istat=nf90_inquire_dimension(ncid,varid,len=nlon)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
+    !   ! Read in Dimensions
+    !   !--------------------
+    !   istat=nf90_inq_dimid(ncid,'lon',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_inquire_dimension(ncid,varid,len=nlon)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
  
-      istat=nf90_inq_dimid(ncid,'lat',varid)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
-      istat=nf90_inquire_dimension(ncid,varid,len=nlat)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
+    !   istat=nf90_inq_dimid(ncid,'lat',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_inquire_dimension(ncid,varid,len=nlat)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
  
-      istat=nf90_inq_dimid(ncid,'lev',varid)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
-      istat=nf90_inquire_dimension(ncid,varid,len=plev)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
+    !   istat=nf90_inq_dimid(ncid,'lev',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_inquire_dimension(ncid,varid,len=plev)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
  
-      istat=nf90_inq_varid(ncid,'lon',varid)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
-      istat=nf90_get_var(ncid,varid,Lon_anal)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
+    !   istat=nf90_inq_varid(ncid,'lon',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_get_var(ncid,varid,Lon_anal)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
  
-      istat=nf90_inq_varid(ncid,'lat',varid)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
-      istat=nf90_get_var(ncid,varid,Lat_anal)
-      if(istat.ne.NF90_NOERR) then
-        write(iulog,*) nf90_strerror(istat)
-        call endrun ('UPDATE_ANALYSES_FV')
-      endif
+    !   istat=nf90_inq_varid(ncid,'lat',varid)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
+    !   istat=nf90_get_var(ncid,varid,Lat_anal)
+    !   if(istat.ne.NF90_NOERR) then
+    !     write(iulog,*) nf90_strerror(istat)
+    !     call endrun ('UPDATE_ANALYSES_FV')
+    !   endif
  
-      if((Force_nlon.ne.nlon).or.(Force_nlat.ne.nlat).or.(plev.ne.pver)) then
-       write(iulog,*) 'ERROR: corrector_update_analyses_fv: nlon=',nlon,' Force_nlon=',Force_nlon
-       write(iulog,*) 'ERROR: corrector_update_analyses_fv: nlat=',nlat,' Force_nlat=',Force_nlat
-       write(iulog,*) 'ERROR: corrector_update_analyses_fv: plev=',plev,' pver=',pver
-       call endrun('corrector_update_analyses_fv: analyses dimension mismatch')
-      endif
-    endif ! (masterproc) 
+    !   if((Force_nlon.ne.nlon).or.(Force_nlat.ne.nlat).or.(plev.ne.pver)) then
+    !    write(iulog,*) 'ERROR: corrector_update_analyses_fv: nlon=',nlon,' Force_nlon=',Force_nlon
+    !    write(iulog,*) 'ERROR: corrector_update_analyses_fv: nlat=',nlat,' Force_nlat=',Force_nlat
+    !    write(iulog,*) 'ERROR: corrector_update_analyses_fv: plev=',plev,' pver=',pver
+    !    call endrun('corrector_update_analyses_fv: analyses dimension mismatch')
+    !   endif
+    ! endif ! (masterproc) 
+
+    nlon = Force_nlon
+    nlat = Force_nlat
+    plev = pver
     
     ! Zeyuan Hu 12/23/2024: gather global state variables
     !---------------------------------------------------
