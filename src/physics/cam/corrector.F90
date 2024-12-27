@@ -1723,8 +1723,11 @@ contains
       ! end do
       call zenith (calday, clat, clon, coszrs(:,lchnk), ncol, dt_avg)
       ! solin(:,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
-      !Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
-      Model_state_SOLIN(:ncol,lchnk) = tot_irrad*1.e3_r8*eccf*coszrs(:,lchnk)
+      ! Model_state_SOLIN(:ncol,lchnk) = sum(sfac(:)*solar_band_irrad(:)) * eccf * coszrs(:,lchnk)
+      ! Model_state_SOLIN(:ncol,lchnk) = tot_irrad*eccf*coszrs(:,lchnk)
+      do i=1,ncol
+        Model_state_SOLIN(i,lchnk) = max(tot_irrad*eccf*coszrs(i,lchnk),0.0_r8)
+      end do
     end do
 
     if (masterproc) then
