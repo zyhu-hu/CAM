@@ -146,6 +146,12 @@ module corrector
 !      Force_Vwin_Hdelta   - REAL HI transition length 
 !      Force_Vwin_Invert   - LOGICAL FALSE= value=1 inside the specified window, 0 outside
 !                                    TRUE = value=0 inside the specified window, 1 outside
+
+!     NN_Data_Save       - LOGICAL toggle to save NN input/output data to file.
+!                              TRUE  -> Save NN data to file.
+!                              FALSE -> Do not save NN data to file.                [DEFAULT]
+
+!     Force_torch_model       - CHAR path to the NN torchscript files.
 !    /
 !
 !================
@@ -229,6 +235,8 @@ module corrector
   real(r8)         :: Force_Hwin_lonWidthH
   real(r8)         :: Force_Hwin_max
   real(r8)         :: Force_Hwin_min
+  logical          :: NN_Data_Save = .false.
+  character(len=cl):: Force_torch_model 
 
   ! corrector State Arrays
   !-----------------------
@@ -280,7 +288,6 @@ module corrector
   !---------------------
   integer :: nn_inputlength  = 197     ! length of NN input vector
   integer :: nn_outputlength = 104     ! length of NN output vector
-  character(len=256)    :: torch_model='/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swin_test_dim1024_depth8_v2_2nodes_r4.pt'
   type(torch_module), allocatable :: torch_mod(:)
 
 contains
@@ -319,7 +326,7 @@ contains
                          Force_Hwin_Invert,                            &
                          Force_Vwin_Lindex,Force_Vwin_Hindex,          &
                          Force_Vwin_Ldelta,Force_Vwin_Hdelta,          &
-                         Force_Vwin_Invert                            
+                         Force_Vwin_Invert, NN_Data_Save, Force_torch_model                
 
    ! corrector is NOT initialized yet, For now
    ! corrector will always begin/end at midnight.
@@ -367,7 +374,8 @@ contains
    Force_Vwin_Invert   = .false.
    Force_Vwin_lo       = 0.0_r8
    Force_Vwin_hi       = 1.0_r8
-
+   NN_Data_Save        = .false.
+   Force_torch_model         = '/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swin_test_dim1024_depth8_v2_2nodes_r4.pt'
    ! Read in namelist values
    !------------------------
    if(masterproc) then
@@ -488,6 +496,8 @@ contains
    call mpibcast(Force_Vwin_Lindex  , 1, mpir8 , 0, mpicom)
    call mpibcast(Force_Vwin_Ldelta  , 1, mpir8 , 0, mpicom)
    call mpibcast(Force_Vwin_Invert,   1, mpilog, 0, mpicom)
+   call mpibcast(NN_Data_Save       , 1, mpilog, 0, mpicom)
+   call mpibcast(Force_torch_model        ,len(Force_torch_model)        ,mpichar,0,mpicom)
 #endif
 
    ! End Routine
@@ -770,6 +780,8 @@ contains
      write(iulog,*) 'corrector: Force_Hwin_max      =',Force_Hwin_max
      write(iulog,*) 'corrector: Force_Hwin_min      =',Force_Hwin_min
      write(iulog,*) 'corrector: Force_Initialized   =',Force_Initialized
+     write(iulog,*) 'corrector: NN_Data_Save        =',NN_Data_Save
+     write(iulog,*) 'corrector: Force_torch_model   =',Force_torch_model
 
    endif ! (masterproc) then
 
@@ -1582,7 +1594,6 @@ contains
     ! integer :: arglen, stat
     integer :: unit
     real(r8) :: tot_irrad
-    logical  :: NN_Data_Save       =.false.
 
     pi = 3.14159265358979323846_r8
     call cnst_get_ind('Q',indw)
@@ -2166,7 +2177,7 @@ contains
     integer :: i, k
 
     allocate(torch_mod (1))
-    call torch_mod(1)%load(trim(torch_model), 0) !0 is not using gpu, for now just use cpu for NN inference
+    call torch_mod(1)%load(trim(Force_torch_model), 0) !0 is not using gpu, for now just use cpu for NN inference
     !call torch_mod(1)%load(trim(cb_torch_model), module_use_device) will use gpu if available
     
   end subroutine init_neural_net
