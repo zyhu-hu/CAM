@@ -612,6 +612,21 @@
        Default: FALSE
        </entry>
 
+<entry id="NN_Data_Save" type="logical" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Save the NN input/output data for debugging/analysis purposes.
+         TRUE  = saving the NN input/output data
+         FALSE = not saving the NN input/output data
+       Default: FALSE
+       </entry>
+
+<entry id="Force_torch_model" type="char*256" input_pathname="abs" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Full pathname of nn torchscript path to use for corrector.
+        (e.g. '/$DIN_LOC_ROOT/atm/cam/corrector/nn.pt')
+       Default: none
+       </entry>
+
 <!-- Conv State Swap Parameters -->
 <entry id="ConvStateSwap_Model" type="logical" category="conv_state_swap"
        group="conv_state_swap_nl" valid_values="" >
