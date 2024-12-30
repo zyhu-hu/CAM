@@ -973,6 +973,7 @@ contains
 #if ( defined OFFLINE_DYN )
      use metdata,       only: get_met_srf1
 #endif
+    use corrector,           only: Force_Model, nncorrector_timestep_init
     !
     ! Input arguments
     !
@@ -1090,6 +1091,8 @@ contains
 #ifdef TRACER_CHECK
     call gmean_mass ('between DRY', phys_state)
 #endif
+
+   if(Force_Model) call nncorrector_timestep_init(phys_state, cam_in)
 
   end subroutine phys_run1
 
@@ -2444,7 +2447,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   if(Nudge_Model) call nudging_timestep_init(phys_state)
 
 !   if(Force_Model) call corrector_timestep_init(phys_state)
-  if(Force_Model) call nncorrector_timestep_init(phys_state, cam_in)
+!   if(Force_Model) call nncorrector_timestep_init(phys_state, cam_in)
 
 end subroutine phys_timestep_init
 
