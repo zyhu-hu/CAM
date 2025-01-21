@@ -2051,7 +2051,7 @@ contains
       do ilat=1,nlat
         do ilev=1,plev
         do ilon=1,nlon
-          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,4*plev+ilev,1)
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,3*plev+ilev,1)
         end do
         end do
       end do
