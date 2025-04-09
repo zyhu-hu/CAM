@@ -627,6 +627,14 @@
        Default: none
        </entry>
 
+<entry id="Force_keep_nc_corrector" type="logical" category="corrector"
+       group="corrector_nl" valid_values="" >
+       If true, add netcdf state-independent corrector data to the correction tendency.
+         TRUE  = add state-independent corrector data 
+         FALSE = not add state-independent corrector data 
+       Default: FALSE
+       </entry>
+
 <!-- Conv State Swap Parameters -->
 <entry id="ConvStateSwap_Model" type="logical" category="conv_state_swap"
        group="conv_state_swap_nl" valid_values="" >

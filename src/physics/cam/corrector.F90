@@ -152,6 +152,7 @@ module corrector
 !                              FALSE -> Do not save NN data to file.                [DEFAULT]
 
 !     Force_torch_model       - CHAR path to the NN torchscript files.
+!     Force_keep_nc_corrector - LOGICAL toggle to keep the state-independent corrector from netcdf files.
 !    /
 !
 !================
@@ -236,6 +237,7 @@ module corrector
   real(r8)         :: Force_Hwin_max
   real(r8)         :: Force_Hwin_min
   logical          :: NN_Data_Save = .false.
+  logical          :: Force_keep_nc_corrector = .false.
   character(len=cl):: Force_torch_model 
 
   ! corrector State Arrays
@@ -246,6 +248,13 @@ module corrector
   real(r8),allocatable::Target_S     (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Target_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Target_PS    (:,:)    !(pcols,begchunk:endchunk)
+
+  real(r8),allocatable::Target_U_si     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_V_si     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_S_si     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_Q_si     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_PS_si    (:,:)    !(pcols,begchunk:endchunk)
+
   real(r8),allocatable:: Force_Utau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable:: Force_Vtau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable:: Force_Stau  (:,:,:)  !(pcols,pver,begchunk:endchunk)
@@ -326,7 +335,8 @@ contains
                          Force_Hwin_Invert,                            &
                          Force_Vwin_Lindex,Force_Vwin_Hindex,          &
                          Force_Vwin_Ldelta,Force_Vwin_Hdelta,          &
-                         Force_Vwin_Invert, NN_Data_Save, Force_torch_model                
+                         Force_Vwin_Invert, NN_Data_Save, Force_torch_model, &
+                         Force_keep_nc_corrector           
 
    ! corrector is NOT initialized yet, For now
    ! corrector will always begin/end at midnight.
@@ -375,6 +385,7 @@ contains
    Force_Vwin_lo       = 0.0_r8
    Force_Vwin_hi       = 1.0_r8
    NN_Data_Save        = .false.
+   Force_keep_nc_corrector = .false.
    Force_torch_model         = '/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swin_test_dim1024_depth8_v2_2nodes_r4.pt'
    ! Read in namelist values
    !------------------------
@@ -497,6 +508,7 @@ contains
    call mpibcast(Force_Vwin_Ldelta  , 1, mpir8 , 0, mpicom)
    call mpibcast(Force_Vwin_Invert,   1, mpilog, 0, mpicom)
    call mpibcast(NN_Data_Save       , 1, mpilog, 0, mpicom)
+   call mpibcast(Force_keep_nc_corrector, 1, mpilog, 0, mpicom)
    call mpibcast(Force_torch_model        ,len(Force_torch_model)        ,mpichar,0,mpicom)
 #endif
 
@@ -553,6 +565,17 @@ contains
    call alloc_err(istat,'corrector_init','Target_Q',pcols*pver*((endchunk-begchunk)+1))
    allocate(Target_PS(pcols,begchunk:endchunk),stat=istat)
    call alloc_err(istat,'corrector_init','Target_PS',pcols*((endchunk-begchunk)+1))
+
+   allocate(Target_U_si(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Target_U_si',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_V_si(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Target_V_si',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_S_si(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Target_S_si',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_Q_si(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Target_Q_si',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_PS_si(pcols,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'corrector_init','Target_PS_si',pcols*((endchunk-begchunk)+1))
 
    allocate(Model_state_U(pcols,pver,begchunk:endchunk),stat=istat)
    call alloc_err(istat,'corrector_init','Model_state_U',pcols*pver*((endchunk-begchunk)+1))
@@ -781,6 +804,7 @@ contains
      write(iulog,*) 'corrector: Force_Hwin_min      =',Force_Hwin_min
      write(iulog,*) 'corrector: Force_Initialized   =',Force_Initialized
      write(iulog,*) 'corrector: NN_Data_Save        =',NN_Data_Save
+     write(iulog,*) 'corrector: Force_keep_nc_corrector=',Force_keep_nc_corrector
      write(iulog,*) 'corrector: Force_torch_model   =',Force_torch_model
 
    endif ! (masterproc) then
@@ -871,6 +895,12 @@ contains
      Target_S(:pcols,:pver,lchnk)=0._r8
      Target_Q(:pcols,:pver,lchnk)=0._r8
      Target_PS(:pcols,lchnk)=0._r8
+
+     Target_U_si(:pcols,:pver,lchnk)=0._r8
+     Target_V_si(:pcols,:pver,lchnk)=0._r8
+     Target_S_si(:pcols,:pver,lchnk)=0._r8
+     Target_Q_si(:pcols,:pver,lchnk)=0._r8
+     Target_PS_si(:pcols,lchnk)=0._r8
 
       Model_state_U(:pcols,:pver,lchnk)=0._r8
       Model_state_V(:pcols,:pver,lchnk)=0._r8
@@ -1157,8 +1187,10 @@ contains
       if(masterproc) then
        write(iulog,*) 'corrector: Reading forcing:',trim(Force_Path)//trim(Force_File)
       endif
- 
-        ! call corrector_update_analyses_fv (trim(Force_Path)//trim(Force_File))
+      
+      if(Force_keep_nc_corrector) then
+        call corrector_update_analyses_fv (trim(Force_Path)//trim(Force_File))
+      end if
       call nncorrector_update(trim(Force_Path)//trim(Force_File), phys_state, cam_in)
  
     endif ! ((Before_End).and.(Update_Force)) then
@@ -1186,11 +1218,19 @@ contains
       !--------------------------------
       do lchnk=begchunk,endchunk
         ncol=phys_state(lchnk)%ncol
-        Force_Ustep(:ncol,:pver,lchnk)=Target_U(:ncol,:pver,lchnk)*Force_Utau(:ncol,:pver,lchnk)
-        Force_Vstep(:ncol,:pver,lchnk)=Target_V(:ncol,:pver,lchnk)*Force_Vtau(:ncol,:pver,lchnk)
-        Force_Sstep(:ncol,:pver,lchnk)=Target_S(:ncol,:pver,lchnk)*Force_Stau(:ncol,:pver,lchnk)
-        Force_Qstep(:ncol,:pver,lchnk)=Target_Q(:ncol,:pver,lchnk)*Force_Qtau(:ncol,:pver,lchnk)
-        Force_PSstep(:ncol,     lchnk)=Target_PS(:ncol,lchnk)*Force_PStau(:ncol,lchnk)
+        if(Force_keep_nc_corrector) then
+          Force_Ustep(:ncol,:pver,lchnk)=(Target_U(:ncol,:pver,lchnk)+Target_U_si(:ncol,:pver,lchnk))*Force_Utau(:ncol,:pver,lchnk)
+          Force_Vstep(:ncol,:pver,lchnk)=(Target_V(:ncol,:pver,lchnk)+Target_V_si(:ncol,:pver,lchnk))*Force_Vtau(:ncol,:pver,lchnk)
+          Force_Sstep(:ncol,:pver,lchnk)=(Target_S(:ncol,:pver,lchnk)+Target_S_si(:ncol,:pver,lchnk))*Force_Stau(:ncol,:pver,lchnk)
+          Force_Qstep(:ncol,:pver,lchnk)=(Target_Q(:ncol,:pver,lchnk)+Target_Q_si(:ncol,:pver,lchnk))*Force_Qtau(:ncol,:pver,lchnk)
+          Force_PSstep(:ncol,     lchnk)=(Target_PS(:ncol,lchnk)+Target_PS_si(:ncol,lchnk))*Force_PStau(:ncol,lchnk)
+        else
+          Force_Ustep(:ncol,:pver,lchnk)=Target_U(:ncol,:pver,lchnk)*Force_Utau(:ncol,:pver,lchnk)
+          Force_Vstep(:ncol,:pver,lchnk)=Target_V(:ncol,:pver,lchnk)*Force_Vtau(:ncol,:pver,lchnk)
+          Force_Sstep(:ncol,:pver,lchnk)=Target_S(:ncol,:pver,lchnk)*Force_Stau(:ncol,:pver,lchnk)
+          Force_Qstep(:ncol,:pver,lchnk)=Target_Q(:ncol,:pver,lchnk)*Force_Qtau(:ncol,:pver,lchnk)
+          Force_PSstep(:ncol,     lchnk)=Target_PS(:ncol,lchnk)*Force_PStau(:ncol,lchnk)
+        end if ! Force_keep_nc_corrector
       end do
  
       if (masterproc) then
@@ -1402,7 +1442,7 @@ contains
      end do
    endif ! (masterproc) then
    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                               Target_U(1,1,begchunk))
+                               Target_U_si(1,1,begchunk))
 
    if(masterproc) then
      istat=nf90_inq_varid(ncid,'VDIFF',varid)
@@ -1424,7 +1464,7 @@ contains
      end do
    endif ! (masterproc) then
    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                               Target_V(1,1,begchunk))
+                               Target_V_si(1,1,begchunk))
 
    if(masterproc) then
      istat=nf90_inq_varid(ncid,'SDIFF',varid)
@@ -1446,7 +1486,7 @@ contains
      end do
    endif ! (masterproc) then
    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                               Target_S(1,1,begchunk))
+                               Target_S_si(1,1,begchunk))
 
    if(masterproc) then
      istat=nf90_inq_varid(ncid,'QDIFF',varid)
@@ -1468,7 +1508,7 @@ contains
      end do
    endif ! (masterproc) then
    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
-                               Target_Q(1,1,begchunk))
+                               Target_Q_si(1,1,begchunk))
 
    ! End Routine
    !------------
