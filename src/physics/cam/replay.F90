@@ -906,6 +906,7 @@ end function interpret_filename_replay
         type(torch_tensor_wrap) :: input_tensors
         type(torch_tensor) :: out_tensor
         real(real32) :: input_torch(Global_nlon, Global_nlat, nn_inputlength, 1)
+        real(real32) :: output_torch_placeholder(Global_nlon, Global_nlat, nn_outputlength, 1)
         real(real32), pointer :: output_torch(:, :, :, :)
     
        integer, save :: nstep_count
@@ -1636,11 +1637,13 @@ end function interpret_filename_replay
       ! seems like when subroutine finishes, if input_tensors/output_torch or out_tensor are not allocated, it will crash
       ! this is a temporary fix, need to figure out better way to avoid crash
       input_torch(:,:,:,:) = 0.0_r8
+      output_torch_placeholder(:,:,:,:) = 0.0_r8
       ! run the NN inference
       call input_tensors%create
       call input_tensors%add_array(input_torch)
-      call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
-      call out_tensor%to_array(output_torch)
+      ! call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+      ! call out_tensor%to_array(output_torch)
+      call out_tensor%from_array(output_torch_placeholder)
     end if ! (modstep6hr==5 .AND. .NOT. corrector_step ) then ! end of NN inference
 
     
