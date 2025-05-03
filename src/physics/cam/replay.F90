@@ -24,6 +24,8 @@ module replay
 #ifdef SPMD
   use mpishorthand
 #endif
+  use torch_ftn
+  use iso_fortran_env
 
   ! Set all Global values and routines to private by default 
   ! and then explicitly set their exposure.
@@ -34,6 +36,8 @@ module replay
   public:: replay_readnl
   public:: replay_register
   public:: replay_correction
+  public:: init_neural_net
+  public:: nnreplay_init
   private:: read_netcdf_replay
   private:: interpret_filename_replay
   public:: Replay_Model ! for if statements
@@ -44,12 +48,53 @@ module replay
   character(len=cs):: Replay_File_Template
   integer          :: Replay_Beg_Year
   real(r8)         :: Replay_coef
+  character(len=cl):: Replay_torch_model 
 
   ! replay observation arrays
   real(r8),allocatable::Ufield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Vfield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Tfield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
   real(r8),allocatable::Qfield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
+
+  ! replay state arrays
+  integer Global_nlon, Global_nlat, Global_nlev
+  real(r8),allocatable::Target_U     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_S     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Target_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+
+  real(r8),allocatable::Model_state_U     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_V     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_T     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_Q     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_QLIQ     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_QICE     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_OMEGA     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_PS    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_SOLIN    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_LHFLX    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_SHFLX    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_SNOWHLND    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_PHIS    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_TAUX    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_TAUY    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_TS    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_ICEFRAC    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_LANDFRAC    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_lat    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_lon    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_tod    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_toy    (:,:)    !(pcols,begchunk:endchunk)
+  real(r8),allocatable::Model_state_U_3h     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_V_3h     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_T_3h     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+  real(r8),allocatable::Model_state_Q_3h     (:,:,:)  !(pcols,pver,begchunk:endchunk)
+
+  ! NN related variables
+  !---------------------
+  integer :: nn_inputlength  = 197     ! length of NN input vector
+  integer :: nn_outputlength = 104     ! length of NN output vector
+  type(torch_module), allocatable :: torch_mod(:)
 
 contains
   !================================================================
@@ -72,7 +117,7 @@ contains
 
    namelist /replay_nl/ Replay_Model,Replay_Path,                       &
                          Replay_File_Template, Replay_Beg_Year,         &
-                         Replay_coef 
+                         Replay_coef, Replay_torch_model 
                          
 
 
@@ -83,7 +128,7 @@ contains
    Replay_File_Template = 'MERRA2_%y%m%d_%h.nc'
    Replay_Beg_Year      = 1980
    Replay_coef          = 1._r8
-
+   Replay_torch_model    = '/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swin_test_dim1024_depth8_v2_2nodes_r4.pt'
    ! Read in namelist values
    !------------------------
    if(masterproc) then
@@ -108,6 +153,7 @@ contains
    call mpibcast(Replay_Model        , 1, mpilog, 0, mpicom)
    call mpibcast(Replay_Beg_Year     , 1, mpiint, 0, mpicom)
    call mpibcast(Replay_coef         , 1, mpir8 , 0, mpicom)
+   call mpibcast(Replay_torch_model        ,len(Replay_torch_model)        ,mpichar,0,mpicom)
 #endif
 
 if(masterproc) then
@@ -120,6 +166,7 @@ if(masterproc) then
   write(iulog,*) 'REPLAY: Replay_File_Template =',Replay_File_Template
   write(iulog,*) 'REPLAY: Replay_Beg_Year =',Replay_Beg_Year
   write(iulog,*) 'REPLAY: Replay_coef  =',Replay_coef
+  write(iulog,*) 'REPLAY: Replay_torch_model  =',Replay_torch_model
 endif
 
    ! End Routine
@@ -127,6 +174,129 @@ endif
    return
   end subroutine ! replay_readnl
   !================================================================
+
+  subroutine nnreplay_init
+   ! 
+   ! replay_INIT: Allocate space to track NN related input/output variables
+   !===============================================================
+    use ppgrid        ,only: pver,pcols,begchunk,endchunk
+   use error_messages,only: alloc_err
+   use dyn_grid      ,only: get_horiz_grid_dim_d
+
+   ! Local values
+   !----------------
+   integer  istat,lchnk,ncol,icol,ilev
+   integer  hdim1_d,hdim2_d
+
+   ! Allocate Space for corrector data arrays
+   !-----------------------------------------
+   allocate(Target_U(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Target_U',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_V(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Target_V',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_S(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Target_S',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Target_Q(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Target_Q',pcols*pver*((endchunk-begchunk)+1))
+
+   allocate(Model_state_U(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Model_state_U',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_V(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Model_state_V',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_T(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Model_state_T',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_Q(pcols,pver,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Model_state_Q',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_QLIQ(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_QLIQ',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_QICE(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_QICE',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_OMEGA(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_OMEGA',pcols*pver*((endchunk-begchunk)+1))
+   allocate(Model_state_PS(pcols,begchunk:endchunk),stat=istat)
+   call alloc_err(istat,'nnreplay_init','Model_state_PS',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_SOLIN(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_SOLIN',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_LHFLX(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_LHFLX',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_SHFLX(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_SHFLX',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_SNOWHLND(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_SNOWHLND',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_PHIS(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_PHIS',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_TAUX(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_TAUX',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_TAUY(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_TAUY',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_TS(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_TS',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_ICEFRAC(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_ICEFRAC',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_LANDFRAC(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_LANDFRAC',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_lat(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_lat',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_lon(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_lon',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_tod(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_tod',pcols*((endchunk-begchunk)+1))
+    allocate(Model_state_toy(pcols,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_toy',pcols*((endchunk-begchunk)+1))
+
+    allocate(Model_state_U_3h(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_U_3h',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_V_3h(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_V_3h',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_T_3h(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_T_3h',pcols*pver*((endchunk-begchunk)+1))
+    allocate(Model_state_Q_3h(pcols,pver,begchunk:endchunk),stat=istat)
+    call alloc_err(istat,'nnreplay_init','Model_state_Q_3h',pcols*pver*((endchunk-begchunk)+1))
+
+    do lchnk=begchunk,endchunk
+      Target_U(:pcols,:pver,lchnk)=0._r8
+      Target_V(:pcols,:pver,lchnk)=0._r8
+      Target_S(:pcols,:pver,lchnk)=0._r8
+      Target_Q(:pcols,:pver,lchnk)=0._r8
+
+      Model_state_U(:pcols,:pver,lchnk)=0._r8
+      Model_state_V(:pcols,:pver,lchnk)=0._r8
+      Model_state_T(:pcols,:pver,lchnk)=0._r8
+      Model_state_Q(:pcols,:pver,lchnk)=0._r8
+      Model_state_QLIQ(:pcols,:pver,lchnk)=0._r8
+      Model_state_QICE(:pcols,:pver,lchnk)=0._r8
+      Model_state_OMEGA(:pcols,:pver,lchnk)=0._r8
+
+      Model_state_PS(:pcols,lchnk)=0._r8
+      Model_state_SOLIN(:pcols,lchnk)=0._r8
+      Model_state_LHFLX(:pcols,lchnk)=0._r8
+      Model_state_SHFLX(:pcols,lchnk)=0._r8
+      Model_state_SNOWHLND(:pcols,lchnk)=0._r8
+      Model_state_PHIS(:pcols,lchnk)=0._r8
+      Model_state_TAUX(:pcols,lchnk)=0._r8
+      Model_state_TAUY(:pcols,lchnk)=0._r8
+      Model_state_TS(:pcols,lchnk)=0._r8
+      Model_state_ICEFRAC(:pcols,lchnk)=0._r8
+      Model_state_LANDFRAC(:pcols,lchnk)=0._r8
+      Model_state_lat(:pcols,lchnk)=0._r8
+      Model_state_lon(:pcols,lchnk)=0._r8
+      Model_state_tod(:pcols,lchnk)=0._r8
+      Model_state_toy(:pcols,lchnk)=0._r8
+
+      Model_state_U_3h(:pcols,:pver,lchnk)=0._r8
+      Model_state_V_3h(:pcols,:pver,lchnk)=0._r8
+      Model_state_T_3h(:pcols,:pver,lchnk)=0._r8
+      Model_state_Q_3h(:pcols,:pver,lchnk)=0._r8
+    end do
+
+    call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
+    Global_nlon=hdim1_d
+    Global_nlat=hdim2_d
+    Global_nlev=pver
+
+  end subroutine !nnreplay_init
+
+
 
   subroutine replay_register
 
@@ -668,7 +838,7 @@ endif
 
 end function interpret_filename_replay
 
-   subroutine replay_correction (state,tend,ztodt)
+   subroutine replay_correction (state,tend,ztodt,cam_in)
 
     !----------------------------------------------------------------------- 
     ! Purpose: 
@@ -689,7 +859,8 @@ end function interpret_filename_replay
         use pmgrid,          only: plon, plat
         use constituents,     only: cnst_get_ind, pcnst
         use check_energy,    only: check_energy_chng
-        use error_messages, only: alloc_err 
+        use error_messages, only: alloc_err
+        use camsrfexch     ,only: cam_in_t 
     
        real(r8) :: qtarget_c(pcols,begchunk:endchunk,pver)
        real(r8) :: utarget_c(pcols,begchunk:endchunk,pver)
@@ -701,6 +872,36 @@ end function interpret_filename_replay
        real(r8) :: uforcing(pcols,begchunk:endchunk,pver)
        real(r8) :: vforcing(pcols,begchunk:endchunk,pver)
        real(r8) :: sforcing(pcols,begchunk:endchunk,pver)
+
+       ! temporary variables to store global data array for NN inputs
+        real(r8) Uanal(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Vanal(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Tanal(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Qanal(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Uanal_3h(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Vanal_3h(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Tanal_3h(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) Qanal_3h(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) OMEGAanal(Global_nlon,Global_nlat,Global_nlev)
+        real(r8) PSanal(Global_nlon,Global_nlat)
+        real(r8) PHISanal(Global_nlon, Global_nlat)
+        real(r8) TSanal(Global_nlon, Global_nlat)
+        real(r8) ICEFRACanal(Global_nlon, Global_nlat)
+        real(r8) LANDFRACanal(Global_nlon, Global_nlat)
+        real(r8) tod_anal(Global_nlon, Global_nlat)
+        real(r8) toy_anal(Global_nlon, Global_nlat)
+        real(r8) clat_anal(Global_nlon, Global_nlat)
+        real(r8) clon_anal(Global_nlon, Global_nlat)
+        real(r8) Lat_anal(Global_nlat)
+        real(r8) Lon_anal(Global_nlon)
+
+        real(r8) Xtrans(Global_nlon,Global_nlev,Global_nlat)
+        real(r8) Xtransf(1,Global_nlon,Global_nlat)
+
+        type(torch_tensor_wrap) :: input_tensors
+        type(torch_tensor) :: out_tensor
+        real(real32) :: input_torch(Global_nlon, Global_nlat, nn_inputlength, 1)
+        real(real32), pointer :: output_torch(:, :, :, :)
     
        integer, save :: nstep_count
     
@@ -708,11 +909,13 @@ end function interpret_filename_replay
         type(physics_state), intent(inout) :: state(begchunk:endchunk)
         type(physics_tend), intent(inout) :: tend(begchunk:endchunk)
         real(r8) , intent(in) :: ztodt
+        type(cam_in_t),intent(in):: cam_in(begchunk:endchunk)
+
     ! Local workspace
         type(physics_ptend)   :: ptend                  ! indivdualparameterization tendencies
         real(r8) ::     arrq(pcols,begchunk:endchunk,pver),arrt(pcols,begchunk:endchunk,pver),arru(pcols,begchunk:endchunk,pver),arrv(pcols,begchunk:endchunk,pver)       ! Input array,chunked
         real(r8) :: zmean                        ! temporary zonal mean value
-        integer :: i, j, qconst, ifld,n ,ilat,ilon,istat                 ! longitude, latitude,field, and global column indices
+        integer :: i, j, qconst, ifld,n ,ilat,ilon,ilev, istat                 ! longitude, latitude,field, and global column indices
         integer :: hdim1, hdim2, c, ncols, k, istep, modstep
         integer :: hdim1_d, hdim2_d, Replay_nlon, Replay_nlat
         real(r8) ::rlat(pcols),damping_coef,wrk,forcingtime,dampingtime!,tmprand(128,64)
@@ -747,9 +950,12 @@ end function interpret_filename_replay
         real(r8) :: msize,mrss
  
         logical  :: lq(pcnst)
+
+        real(r8) pi
     
       !---------------------------flamraoui------------------------------
-      
+       pi = 3.14159265358979323846_r8
+
        istep=get_nstep()
        nstep_count=istep
     
@@ -806,7 +1012,36 @@ end function interpret_filename_replay
     modstep6hr=  (mod(istep, 12)) 
     modstep3hr=  (mod(istep, 6)) 
     
-    
+      !------------------------------------------
+       
+       
+    !goals at beginning of "clean" run
+    !a) track atmosphere states for NN inputs
+
+    call cnst_get_ind('Q',indw)
+    if (modstep6hr == 0 .AND. .NOT. corrector_step ) then
+      do lchnk=begchunk,endchunk
+        ncol=phys_state(lchnk)%ncol
+        Model_state_U(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver)
+        Model_state_V(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver)
+        Model_state_T(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver)
+        Model_state_Q(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw)
+
+        Model_state_OMEGA(:ncol,:pver,lchnk)=phys_state(lchnk)%omega(:ncol,:pver)
+        Model_state_PS(:ncol,lchnk)=phys_state(lchnk)%ps(:ncol)
+        Model_state_PHIS(:ncol,lchnk)=phys_state(lchnk)%phis(:ncol)
+        Model_state_TS(:ncol,lchnk)=cam_in(lchnk)%ts(:ncol)
+        Model_state_ICEFRAC(:ncol,lchnk)=cam_in(lchnk)%icefrac(:ncol)
+        Model_state_LANDFRAC(:ncol,lchnk)=cam_in(lchnk)%landfrac(:ncol)
+        Model_state_lat(:ncol,lchnk)=phys_state(lchnk)%lat(:ncol)*(180./pi)
+        Model_state_lon(:ncol,lchnk)=phys_state(lchnk)%lon(:ncol)*(180./pi)
+        Model_state_tod(:ncol,lchnk)=(mod(istep, 48))/2.0 ! in hours
+        Model_state_toy(:ncol,lchnk)=day*1.0 ! in day
+      end do
+    endif
+       
+       
+
     
       !------------------------------------------
        
@@ -888,88 +1123,368 @@ end function interpret_filename_replay
     
     
     !goals at end of "clean" run
-    ! a) reading merra target
-    ! b) define forcing to be difference with the state divided by 6hrs 
+    ! a) prepare NN inputs
+    ! b) call NN to predict forcing ( difference with the state divided by 6hrs) 
     ! c) write (save) it to disk 
     ! d) set corrector_step to true 
     ! e) reset clock and restart states (not here)
     
         if  (modstep6hr==5 .AND. .NOT. corrector_step ) then
 
-          fileexists=.FALSE.
-    
-    do while (.NOT. fileexists )
+          do lchnk=begchunk,endchunk
+            ncol=phys_state(lchnk)%ncol
+            Model_state_U_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver) - Model_state_U(:ncol,:pver,lchnk)
+            Model_state_V_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver) - Model_state_V(:ncol,:pver,lchnk)
+            Model_state_T_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver) - Model_state_T(:ncol,:pver,lchnk)
+            Model_state_Q_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw) - Model_state_Q(:ncol,:pver,lchnk)
+          end do      
+          
+    call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_U,Xtrans)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilev=1,plev
+      do ilon=1,Global_nlon
+        Uanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
 
-      if (masterproc) write(iulog,*) "modstep, ncsec + 1800", modstep, ncsec+1800
-    
-      filename=interpret_filename_replay(Replay_File_Template      , &
-          yr_spec=yr , &
-          mon_spec=mon, &
-          day_spec=day  , &
-          hr_spec=modstep, &
-          sec_spec=ncsec+1800    )
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_V,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Vanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
 
-      if(masterproc) then
-        write(iulog,*) trim(Replay_Path)//trim(filename)
-      endif
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_T,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Tanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
+
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_Q,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Qanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
+
+call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_U_3h,Xtrans)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilev=1,plev
+      do ilon=1,Global_nlon
+        Uanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+      end do
+      end do
+      end do
+    endif ! (masterproc) then
+
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_V_3h,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Vanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
+
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_T_3h,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Tanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
+
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_Q_3h,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Qanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
+
+      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_OMEGA,Xtrans)
+      if (masterproc) then
+        do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          OMEGAanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then   
+        
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_PS,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        PSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then        
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_PHIS,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        PHISanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_TS,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        TSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_ICEFRAC,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        ICEFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_LANDFRAC,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        LANDFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_tod,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        tod_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_toy,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        toy_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_lat,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        clat_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then
+
+    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_lon,Xtransf)
+    if (masterproc) then
+      do ilat=1,Global_nlat
+      do ilon=1,Global_nlon
+        clon_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+      end do
+      end do
+    endif ! (masterproc) then    
+
+
+    ! collect and prepare the input data for the neural network
+    if (masterproc) then   
+      do ilon=1,Global_nlon
+        do ilat=1,Global_nlat
+
+          input_torch(ilon,ilat,0*plev+1:1*plev,1) = Tanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,1*plev+1:2*plev,1) = Qanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,2*plev+1:3*plev,1) = Uanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,3*plev+1:4*plev,1) = Vanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,4*plev+1:5*plev,1) = OMEGAanal(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,5*plev+1,1) = PSanal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+2,1) = PHISanal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+3,1) = TSanal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+4,1) = ICEFRACanal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+5,1) = LANDFRACanal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+6,1) = clat_anal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+7,1) = clon_anal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+8,1) = tod_anal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+9,1) = toy_anal(ilon,ilat)
+          input_torch(ilon,ilat,5*plev+10:6*plev+9,1) = Tanal_3h(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,6*plev+10:7*plev+9,1) = Qanal_3h(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,7*plev+10:8*plev+9,1) = Uanal_3h(ilon,ilat,1:plev)
+          input_torch(ilon,ilat,8*plev+10:9*plev+9,1) = Vanal_3h(ilon,ilat,1:plev)
+        end do
+      end do
+    else
+      input_torch(:,:,:,:) = 0.0_r8
+    endif ! (masterproc) then
+    
+
+    ! run the NN inference
+    call input_tensors%create
+    call input_tensors%add_array(input_torch)
+    call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+    call out_tensor%to_array(output_torch)
+
+    ! mapping nn output to the forcing arrays 
+    if (masterproc) then 
+      do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
+    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    Target_S(1,1,begchunk))
+
+    if (masterproc) then 
+      do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,1*plev+ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
+    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    Target_Q(1,1,begchunk))
+
+    if (masterproc) then 
+      do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,2*plev+ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
+    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    Target_U(1,1,begchunk))
+
+    if (masterproc) then 
+      do ilat=1,Global_nlat
+        do ilev=1,plev
+        do ilon=1,Global_nlon
+          Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,3*plev+ilev,1)
+        end do
+        end do
+      end do
+    endif ! (masterproc) then
+    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    Target_V(1,1,begchunk))
+
+
+      !       fileexists=.FALSE.
+    
+    ! do while (.NOT. fileexists )
+
+    !   if (masterproc) write(iulog,*) "modstep, ncsec + 1800", modstep, ncsec+1800
+    
+    !   filename=interpret_filename_replay(Replay_File_Template      , &
+    !       yr_spec=yr , &
+    !       mon_spec=mon, &
+    !       day_spec=day  , &
+    !       hr_spec=modstep, &
+    !       sec_spec=ncsec+1800    )
+
+    !   if(masterproc) then
+    !     write(iulog,*) trim(Replay_Path)//trim(filename)
+    !   endif
       
-      INQUIRE(FILE=trim(Replay_Path)//trim(filename), EXIST=fileexists)
+    !   INQUIRE(FILE=trim(Replay_Path)//trim(filename), EXIST=fileexists)
       
-      if (.not. fileexists) print*, 'file missing', filename
+    !   if (.not. fileexists) print*, 'file missing', filename
       
-      day=day-1
-      if (day==0) then
-      day=31
-      mon=mon-1
-      if (mon==0) then
-      mon=12
-      yr=yr-1
-      end if
-      end if
+    !   day=day-1
+    !   if (day==0) then
+    !   day=31
+    !   mon=mon-1
+    !   if (mon==0) then
+    !   mon=12
+    !   yr=yr-1
+    !   end if
+    !   end if
       
-    end do ! checking if file exists
+    ! end do ! checking if file exists
    
-    !-------------------------------------------------------------------------------------
-    if (masterproc) write(iulog,*) "Reanalysis filename = ", trim(Replay_Path)//trim(filename)   ! print filename used 
-    !-----------------------------finish calling filename--------------------------------------  
+    ! !-------------------------------------------------------------------------------------
+    ! if (masterproc) write(iulog,*) "Reanalysis filename = ", trim(Replay_Path)//trim(filename)   ! print filename used 
+    ! !-----------------------------finish calling filename--------------------------------------  
     
          
-          call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
-          Replay_nlon=hdim1_d
-          Replay_nlat=hdim2_d
+          ! call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
+          ! Replay_nlon=hdim1_d
+          ! Replay_nlat=hdim2_d
           
-          allocate(Ufield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Ufield3d',pcols*pver*((endchunk-begchunk)+1))
-          allocate(Vfield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Vfield3d',pcols*pver*((endchunk-begchunk)+1))
-          allocate(Tfield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Tfield3d',pcols*pver*((endchunk-begchunk)+1))
-          allocate(Qfield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Qfield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Ufield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Ufield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Vfield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Vfield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Tfield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Tfield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Qfield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Qfield3d',pcols*pver*((endchunk-begchunk)+1))
  
-          Ufield3d(:pcols,:pver,begchunk:endchunk)=0._r8
-          Vfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
-          Tfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
-          Qfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Ufield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Vfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Tfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Qfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
  
-          call read_netcdf_replay(trim(Replay_Path)//trim(filename), Replay_nlon, Replay_nlat)
+          ! call read_netcdf_replay(trim(Replay_Path)//trim(filename), Replay_nlon, Replay_nlat)
     
        !call pio_closefile(File)
        if(masterproc) then 
-       write(iulog,*) "done read in reanalysis"
-       write(iulog,*) "state(c)%sforce(1,1): ", state(begchunk)%sforce(1,1)
-       write(iulog,*) "begchunk: ", begchunk
-       write(iulog,*) "anal_field T(1,1,1): ", Tfield3d(1,1,begchunk)
+      !  write(iulog,*) "done read in reanalysis"
+      !  write(iulog,*) "state(c)%sforce(1,1): ", state(begchunk)%sforce(1,1)
+      !  write(iulog,*) "begchunk: ", begchunk
+      !  write(iulog,*) "anal_field T(1,1,1): ", Tfield3d(1,1,begchunk)
+        write(iulog,*) "done nn inference"
        endif
     
             do c = begchunk, endchunk
                 ncols = get_ncols_p(c)
                 do i = 1, ncols
                     do k=1,pver
-                        state(c)%qforce(i,k)=((Qfield3d(i,k,c)-state(c)%q(i,k,1)))
-                        state(c)%uforce(i,k)=((Ufield3d(i,k,c)-state(c)%u(i,k)))
-                        state(c)%vforce(i,k)=((Vfield3d(i,k,c)-state(c)%v(i,k)))
-                        state(c)%sforce(i,k)=((Tfield3d(i,k,c)-state(c)%t(i,k)))*cpair
+                        ! state(c)%qforce(i,k)=((Qfield3d(i,k,c)-state(c)%q(i,k,1)))
+                        ! state(c)%uforce(i,k)=((Ufield3d(i,k,c)-state(c)%u(i,k)))
+                        ! state(c)%vforce(i,k)=((Vfield3d(i,k,c)-state(c)%v(i,k)))
+                        ! state(c)%sforce(i,k)=((Tfield3d(i,k,c)-state(c)%t(i,k)))*cpair
+                      state(c)%qforce(i,k) = Target_Q(i,k,c)
+                      state(c)%uforce(i,k) = Target_U(i,k,c)
+                      state(c)%vforce(i,k) = Target_V(i,k,c)
+                      state(c)%sforce(i,k) = Target_S(i,k,c)
                     end do
                 end do
             end do
@@ -981,10 +1496,10 @@ end function interpret_filename_replay
             endif
     
             !deallocate(tmpfield)
-            deallocate(Tfield3d)
-            deallocate(Ufield3d)
-            deallocate(Vfield3d)
-            deallocate(Qfield3d)
+            ! deallocate(Tfield3d)
+            ! deallocate(Ufield3d)
+            ! deallocate(Vfield3d)
+            ! deallocate(Qfield3d)
             !deallocate(Zfield3d)
     !writing happens in cam_diagnostics
     
@@ -994,6 +1509,18 @@ end function interpret_filename_replay
     
     end subroutine replay_correction
 
+
+    subroutine init_neural_net()
+
+      implicit none
+  
+      integer :: i, k
+  
+      allocate(torch_mod (1))
+      call torch_mod(1)%load(trim(Replay_torch_model), 0) !0 is not using gpu, for now just use cpu for NN inference
+      !call torch_mod(1)%load(trim(cb_torch_model), module_use_device) will use gpu if available
+      
+    end subroutine init_neural_net
 
   !================================================================
 

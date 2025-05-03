@@ -758,6 +758,7 @@ contains
     use nudging,            only: Nudge_Model, nudging_init
     use corrector,          only: Force_Model, corrector_init
     use conv_state_swap,    only: ConvStateSwap_Model, conv_state_swap_init
+    use replay,             only: init_neural_net, nnreplay_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -949,6 +950,12 @@ contains
 
     ! Initialize qneg3 and qneg4
     call qneg_init()
+
+    ! initialize nn-replay's data allocation
+    if(Replay_Model) call nnreplay_init
+
+    ! initialize the neural network (reading pt file) for NN corrector
+    if(Replay_Model) call init_neural_net()
 
   end subroutine phys_init
 
@@ -1194,7 +1201,7 @@ contains
 
     if (Replay_Model) then
       if (masterproc) write(iulog,*) 'About to call replay_correction.'
-      call replay_correction(phys_state,phys_tend,ztodt) ! call replay function - sweidman
+      call replay_correction(phys_state,phys_tend,ztodt,cam_in) ! call replay function - sweidman
     endif
 
     do c=begchunk,endchunk
