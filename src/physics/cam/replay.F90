@@ -923,7 +923,7 @@ end function interpret_filename_replay
         integer :: i, j, qconst, ifld,n ,ilat,ilon,ilev, istat                 ! longitude, latitude,field, and global column indices
         integer :: hdim1, hdim2, c, ncols, k, istep, modstep
         integer :: hdim1_d, hdim2_d, Replay_nlon, Replay_nlat
-        integer :: nlat, nlon
+        integer :: nlat, nlon, plev
         real(r8) ::rlat(pcols),damping_coef,wrk,forcingtime,dampingtime!,tmprand(128,64)
         real :: tmp_zero
         real(r8) :: zero(pcols)                    ! array of zeros
@@ -973,6 +973,7 @@ end function interpret_filename_replay
 
        nlat = Global_nlat
        nlon = Global_nlon
+       plev = pver
     
     !On first time step, make sure we're starting a "clean" run
     
@@ -1036,22 +1037,22 @@ end function interpret_filename_replay
     call cnst_get_ind('Q',indw)
     if (modstep6hr == 0 .AND. .NOT. corrector_step ) then
       do lchnk=begchunk,endchunk
-        ncol=phys_state(lchnk)%ncol
-        Model_state_U(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver)
-        Model_state_V(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver)
-        Model_state_T(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver)
-        Model_state_Q(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw)
+        ncols=state(lchnk)%ncol
+        Model_state_U(:ncols,:pver,lchnk)=state(lchnk)%u(:ncols,:pver)
+        Model_state_V(:ncols,:pver,lchnk)=state(lchnk)%v(:ncols,:pver)
+        Model_state_T(:ncols,:pver,lchnk)=state(lchnk)%t(:ncols,:pver)
+        Model_state_Q(:ncols,:pver,lchnk)=state(lchnk)%q(:ncols,:pver,indw)
 
-        Model_state_OMEGA(:ncol,:pver,lchnk)=phys_state(lchnk)%omega(:ncol,:pver)
-        Model_state_PS(:ncol,lchnk)=phys_state(lchnk)%ps(:ncol)
-        Model_state_PHIS(:ncol,lchnk)=phys_state(lchnk)%phis(:ncol)
-        Model_state_TS(:ncol,lchnk)=cam_in(lchnk)%ts(:ncol)
-        Model_state_ICEFRAC(:ncol,lchnk)=cam_in(lchnk)%icefrac(:ncol)
-        Model_state_LANDFRAC(:ncol,lchnk)=cam_in(lchnk)%landfrac(:ncol)
-        Model_state_lat(:ncol,lchnk)=phys_state(lchnk)%lat(:ncol)*(180./pi)
-        Model_state_lon(:ncol,lchnk)=phys_state(lchnk)%lon(:ncol)*(180./pi)
-        Model_state_tod(:ncol,lchnk)=(mod(istep, 48))/2.0 ! in hours
-        Model_state_toy(:ncol,lchnk)=day*1.0 ! in day
+        Model_state_OMEGA(:ncols,:pver,lchnk)=state(lchnk)%omega(:ncols,:pver)
+        Model_state_PS(:ncols,lchnk)=state(lchnk)%ps(:ncols)
+        Model_state_PHIS(:ncols,lchnk)=state(lchnk)%phis(:ncols)
+        Model_state_TS(:ncols,lchnk)=cam_in(lchnk)%ts(:ncols)
+        Model_state_ICEFRAC(:ncols,lchnk)=cam_in(lchnk)%icefrac(:ncols)
+        Model_state_LANDFRAC(:ncols,lchnk)=cam_in(lchnk)%landfrac(:ncols)
+        Model_state_lat(:ncols,lchnk)=state(lchnk)%lat(:ncols)*(180./pi)
+        Model_state_lon(:ncols,lchnk)=state(lchnk)%lon(:ncols)*(180./pi)
+        Model_state_tod(:ncols,lchnk)=(mod(istep, 48))/2.0 ! in hours
+        Model_state_toy(:ncols,lchnk)=day*1.0 ! in day
       end do
     endif
        
@@ -1147,11 +1148,11 @@ end function interpret_filename_replay
   if  (modstep6hr==5 .AND. .NOT. corrector_step ) then
 
     do lchnk=begchunk,endchunk
-      ncol=phys_state(lchnk)%ncol
-      Model_state_U_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver) - Model_state_U(:ncol,:pver,lchnk)
-      Model_state_V_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver) - Model_state_V(:ncol,:pver,lchnk)
-      Model_state_T_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver) - Model_state_T(:ncol,:pver,lchnk)
-      Model_state_Q_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw) - Model_state_Q(:ncol,:pver,lchnk)
+      ncols=state(lchnk)%ncol
+      Model_state_U_3h(:ncols,:pver,lchnk)=state(lchnk)%u(:ncols,:pver) - Model_state_U(:ncols,:pver,lchnk)
+      Model_state_V_3h(:ncols,:pver,lchnk)=state(lchnk)%v(:ncols,:pver) - Model_state_V(:ncols,:pver,lchnk)
+      Model_state_T_3h(:ncols,:pver,lchnk)=state(lchnk)%t(:ncols,:pver) - Model_state_T(:ncols,:pver,lchnk)
+      Model_state_Q_3h(:ncols,:pver,lchnk)=state(lchnk)%q(:ncols,:pver,indw) - Model_state_Q(:ncols,:pver,lchnk)
     end do      
           
     call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_U,Xtrans)
@@ -1444,7 +1445,7 @@ end function interpret_filename_replay
           ! Create filename with time information
         write(nc_filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
         "nn_verification_", yr, "-", &
-        Force_Curr_Mmononth, "-", day, "-", &
+        mon, "-", day, "-", &
         nstep_count, ".nc"
   
         print *, "Filename: ", trim(nc_filename)
