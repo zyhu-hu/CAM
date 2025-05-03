@@ -1528,7 +1528,7 @@ end function interpret_filename_replay
   
       endif ! (masterproc) then
     endif ! (NN_Data_Save) then
-  endif ! (modstep6hr==5 .AND. .NOT. corrector_step ) then ! end of NN inference
+
     !-----------------------------------------------------------
 
       !       fileexists=.FALSE.
@@ -1630,7 +1630,7 @@ end function interpret_filename_replay
     
             corrector_step=.TRUE.
     
-    end if
+    end if ! (modstep6hr==5 .AND. .NOT. corrector_step ) then ! end of NN inference
     
     end subroutine replay_correction
 
