@@ -49,6 +49,7 @@ module replay
   integer          :: Replay_Beg_Year
   real(r8)         :: Replay_coef
   character(len=cl):: Replay_torch_model 
+  logical          :: NN_Data_Save = .false.
 
   ! replay observation arrays
   real(r8),allocatable::Ufield3d (:,:,:) !(pcols,pver,begchunk:endchunk)
@@ -92,7 +93,7 @@ module replay
 
   ! NN related variables
   !---------------------
-  integer :: nn_inputlength  = 197     ! length of NN input vector
+  integer :: nn_inputlength  = 243     ! length of NN input vector
   integer :: nn_outputlength = 104     ! length of NN output vector
   type(torch_module), allocatable :: torch_mod(:)
 
@@ -117,7 +118,7 @@ contains
 
    namelist /replay_nl/ Replay_Model,Replay_Path,                       &
                          Replay_File_Template, Replay_Beg_Year,         &
-                         Replay_coef, Replay_torch_model 
+                         Replay_coef, Replay_torch_model, NN_Data_Save
                          
 
 
@@ -128,7 +129,8 @@ contains
    Replay_File_Template = 'MERRA2_%y%m%d_%h.nc'
    Replay_Beg_Year      = 1980
    Replay_coef          = 1._r8
-   Replay_torch_model    = '/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swin_test_dim1024_depth8_v2_2nodes_r4.pt'
+   Replay_torch_model    = '/n/holylfs04/LABS/kuang_lab/Lab/kuanglfs/zeyuanhu/climcorr/swinv3_futuretend_polecstrained_dconly_ckpt_epoch_39_rmtop1l.pt'
+   NN_Data_Save        = .false.
    ! Read in namelist values
    !------------------------
    if(masterproc) then
@@ -154,6 +156,7 @@ contains
    call mpibcast(Replay_Beg_Year     , 1, mpiint, 0, mpicom)
    call mpibcast(Replay_coef         , 1, mpir8 , 0, mpicom)
    call mpibcast(Replay_torch_model        ,len(Replay_torch_model)        ,mpichar,0,mpicom)
+   call mpibcast(NN_Data_Save       , 1, mpilog, 0, mpicom)
 #endif
 
 if(masterproc) then
@@ -167,6 +170,7 @@ if(masterproc) then
   write(iulog,*) 'REPLAY: Replay_Beg_Year =',Replay_Beg_Year
   write(iulog,*) 'REPLAY: Replay_coef  =',Replay_coef
   write(iulog,*) 'REPLAY: Replay_torch_model  =',Replay_torch_model
+  write(iulog,*) 'REPLAY: NN_Data_Save        =',NN_Data_Save
 endif
 
    ! End Routine
@@ -861,6 +865,7 @@ end function interpret_filename_replay
         use check_energy,    only: check_energy_chng
         use error_messages, only: alloc_err
         use camsrfexch     ,only: cam_in_t 
+        use netcdf
     
        real(r8) :: qtarget_c(pcols,begchunk:endchunk,pver)
        real(r8) :: utarget_c(pcols,begchunk:endchunk,pver)
@@ -918,6 +923,7 @@ end function interpret_filename_replay
         integer :: i, j, qconst, ifld,n ,ilat,ilon,ilev, istat                 ! longitude, latitude,field, and global column indices
         integer :: hdim1, hdim2, c, ncols, k, istep, modstep
         integer :: hdim1_d, hdim2_d, Replay_nlon, Replay_nlat
+        integer :: nlat, nlon
         real(r8) ::rlat(pcols),damping_coef,wrk,forcingtime,dampingtime!,tmprand(128,64)
         real :: tmp_zero
         real(r8) :: zero(pcols)                    ! array of zeros
@@ -935,6 +941,12 @@ end function interpret_filename_replay
         integer :: resul,lchnk
         real(r8), pointer :: londeg(:,:)
         type(file_desc_t) :: File
+        real, dimension(1, nn_inputlength, Global_nlat, Global_nlon) :: data_input
+        real, dimension(1, nn_outputlength, Global_nlat, Global_nlon) :: data_output
+        character(len=100) :: nc_filename
+        integer ncid
+        integer :: varid_input, varid_output
+        integer :: dimids_input(4), dimids_output(4)
     
        !---------------------------flamraoui 2------------------------------
       ! variable for reading netcdf 
@@ -958,6 +970,9 @@ end function interpret_filename_replay
 
        istep=get_nstep()
        nstep_count=istep
+
+       nlat = Global_nlat
+       nlon = Global_nlon
     
     !On first time step, make sure we're starting a "clean" run
     
@@ -1129,201 +1144,201 @@ end function interpret_filename_replay
     ! d) set corrector_step to true 
     ! e) reset clock and restart states (not here)
     
-        if  (modstep6hr==5 .AND. .NOT. corrector_step ) then
+  if  (modstep6hr==5 .AND. .NOT. corrector_step ) then
 
-          do lchnk=begchunk,endchunk
-            ncol=phys_state(lchnk)%ncol
-            Model_state_U_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver) - Model_state_U(:ncol,:pver,lchnk)
-            Model_state_V_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver) - Model_state_V(:ncol,:pver,lchnk)
-            Model_state_T_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver) - Model_state_T(:ncol,:pver,lchnk)
-            Model_state_Q_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw) - Model_state_Q(:ncol,:pver,lchnk)
-          end do      
+    do lchnk=begchunk,endchunk
+      ncol=phys_state(lchnk)%ncol
+      Model_state_U_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%u(:ncol,:pver) - Model_state_U(:ncol,:pver,lchnk)
+      Model_state_V_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%v(:ncol,:pver) - Model_state_V(:ncol,:pver,lchnk)
+      Model_state_T_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%t(:ncol,:pver) - Model_state_T(:ncol,:pver,lchnk)
+      Model_state_Q_3h(:ncol,:pver,lchnk)=phys_state(lchnk)%q(:ncol,:pver,indw) - Model_state_Q(:ncol,:pver,lchnk)
+    end do      
           
-    call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_U,Xtrans)
+    call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_U,Xtrans)
     if (masterproc) then
-      do ilat=1,Global_nlat
+      do ilat=1,nlat
       do ilev=1,plev
-      do ilon=1,Global_nlon
+      do ilon=1,nlon
         Uanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
       end do
       end do
       end do
     endif ! (masterproc) then
 
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_V,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_V,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Vanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then
 
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_T,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_T,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Tanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then
 
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_Q,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_Q,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Qanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then
 
-call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_U_3h,Xtrans)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilev=1,plev
-      do ilon=1,Global_nlon
-        Uanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
-      end do
-      end do
-      end do
-    endif ! (masterproc) then
-
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_V_3h,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_U_3h,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
+          Uanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
+        end do
+        end do
+        end do
+      endif ! (masterproc) then
+
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_V_3h,Xtrans)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilev=1,plev
+        do ilon=1,nlon
           Vanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then
 
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_T_3h,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_T_3h,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Tanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then
 
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_Q_3h,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_Q_3h,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Qanal_3h(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then
 
-      call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_OMEGA,Xtrans)
+      call gather_chunk_to_field(1,Global_nlev,1,nlon,Model_state_OMEGA,Xtrans)
       if (masterproc) then
-        do ilat=1,Global_nlat
+        do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           OMEGAanal(ilon,ilat,ilev)=Xtrans(ilon,ilev,ilat)
         end do
         end do
         end do
       endif ! (masterproc) then   
         
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_PS,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        PSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then        
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_PS,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          PSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then        
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_PHIS,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        PHISanal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_PHIS,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          PHISanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_TS,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        TSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_TS,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          TSanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_ICEFRAC,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        ICEFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_ICEFRAC,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          ICEFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_LANDFRAC,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        LANDFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_LANDFRAC,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          LANDFRACanal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_tod,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        tod_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_tod,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          tod_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_toy,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        toy_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_toy,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          toy_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_lat,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        clat_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_lat,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          clat_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then
 
-    call gather_chunk_to_field(1,1,1,Global_nlon,Model_state_lon,Xtransf)
-    if (masterproc) then
-      do ilat=1,Global_nlat
-      do ilon=1,Global_nlon
-        clon_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
-      end do
-      end do
-    endif ! (masterproc) then    
+      call gather_chunk_to_field(1,1,1,nlon,Model_state_lon,Xtransf)
+      if (masterproc) then
+        do ilat=1,nlat
+        do ilon=1,nlon
+          clon_anal(ilon,ilat)=Xtransf(1,ilon,ilat)
+        end do
+        end do
+      endif ! (masterproc) then    
 
 
     ! collect and prepare the input data for the neural network
     if (masterproc) then   
-      do ilon=1,Global_nlon
-        do ilat=1,Global_nlat
+      do ilon=1,nlon
+        do ilat=1,nlat
 
           input_torch(ilon,ilat,0*plev+1:1*plev,1) = Tanal(ilon,ilat,1:plev)
           input_torch(ilon,ilat,1*plev+1:2*plev,1) = Qanal(ilon,ilat,1:plev)
@@ -1358,53 +1373,162 @@ call gather_chunk_to_field(1,Global_nlev,1,Global_nlon,Model_state_U_3h,Xtrans)
 
     ! mapping nn output to the forcing arrays 
     if (masterproc) then 
-      do ilat=1,Global_nlat
+      do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,ilev,1)
         end do
         end do
       end do
     endif ! (masterproc) then
-    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    call scatter_field_to_chunk(1,Global_nlev,1,nlon,Xtrans,   &
     Target_S(1,1,begchunk))
 
     if (masterproc) then 
-      do ilat=1,Global_nlat
+      do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,1*plev+ilev,1)
         end do
         end do
       end do
     endif ! (masterproc) then
-    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    call scatter_field_to_chunk(1,Global_nlev,1,nlon,Xtrans,   &
     Target_Q(1,1,begchunk))
 
     if (masterproc) then 
-      do ilat=1,Global_nlat
+      do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,2*plev+ilev,1)
         end do
         end do
       end do
     endif ! (masterproc) then
-    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    call scatter_field_to_chunk(1,Global_nlev,1,nlon,Xtrans,   &
     Target_U(1,1,begchunk))
 
     if (masterproc) then 
-      do ilat=1,Global_nlat
+      do ilat=1,nlat
         do ilev=1,plev
-        do ilon=1,Global_nlon
+        do ilon=1,nlon
           Xtrans(ilon,ilev,ilat)=output_torch(ilon,ilat,3*plev+ilev,1)
         end do
         end do
       end do
     endif ! (masterproc) then
-    call scatter_field_to_chunk(1,Global_nlev,1,Global_nlon,Xtrans,   &
+    call scatter_field_to_chunk(1,Global_nlev,1,nlon,Xtrans,   &
     Target_V(1,1,begchunk))
 
+    
+    !-----------------------------------------------------------
+    ! write the NN input and output data to netcdf file
+    if (NN_Data_Save) then
+      if (masterproc) then  
+        do i=1,nn_inputlength
+          do ilat=1,nlat
+            do ilon=1,nlon
+              data_input(1,i,ilat,ilon) = input_torch(ilon,ilat,i,1)
+            end do
+          end do
+        end do
+  
+        do i=1,nn_outputlength
+          do ilat=1,nlat
+            do ilon=1,nlon
+              data_output(1,i,ilat,ilon) = output_torch(ilon,ilat,i,1)
+            end do
+          end do
+        end do
+  
+          ! Create filename with time information
+        write(nc_filename, '(A,I4.4,A,I2.2,A,I2.2,A,I5.5,A)') &
+        "nn_verification_", yr, "-", &
+        Force_Curr_Mmononth, "-", day, "-", &
+        nstep_count, ".nc"
+  
+        print *, "Filename: ", trim(nc_filename)
+  
+        ! Create NetCDF file
+      istat = nf90_create(trim(nc_filename), nf90_clobber, ncid)
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_CREATE: failed for file ', trim(nc_filename)
+        write(*, *) nf90_strerror(istat)
+        call endrun('CREATE_NETCDF')
+      endif
+  
+  
+      ! Define dimensions
+      istat = nf90_def_dim(ncid, "time", 1, dimids_input(1))
+      istat = nf90_def_dim(ncid, "input_length", nn_inputlength, dimids_input(2))
+      istat = nf90_def_dim(ncid, "lat", nlat, dimids_input(3))
+      istat = nf90_def_dim(ncid, "lon", nlon, dimids_input(4))
+      if (istat /= nf90_noerr) then
+        write(*, *) 'NF90_DEF_DIM: failed'
+        write(*, *) nf90_strerror(istat)
+        call endrun('DEFINE_DIMENSIONS')
+      endif
+  
+        dimids_output = dimids_input
+        istat = nf90_def_dim(ncid, "output_length", nn_outputlength, dimids_output(2))
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_DEF_DIM (output_length): failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('DEFINE_OUTPUT_DIMENSIONS')
+        endif
+          
+          ! Define variables for input and output data
+        istat = nf90_def_var(ncid, "data_input", nf90_real, dimids_input, varid_input)
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_DEF_VAR (data_input): failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('DEFINE_VAR_INPUT')
+        endif
+  
+        istat = nf90_def_var(ncid, "data_output", nf90_real, dimids_output, varid_output)
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_DEF_VAR (data_output): failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('DEFINE_VAR_OUTPUT')
+        endif
+  
+        ! End define mode
+        istat = nf90_enddef(ncid)
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_ENDDEF: failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('ENDDEF')
+        endif
+  
+        ! Write data
+        istat = nf90_put_var(ncid, varid_input, data_input)
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_PUT_VAR (data_input): failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('PUT_VAR_INPUT')
+        endif
+  
+        istat = nf90_put_var(ncid, varid_output, data_output)
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_PUT_VAR (data_output): failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('PUT_VAR_OUTPUT')
+        endif
+  
+        ! Close file
+        istat = nf90_close(ncid)
+        if (istat /= nf90_noerr) then
+          write(*, *) 'NF90_CLOSE: failed'
+          write(*, *) nf90_strerror(istat)
+          call endrun('CLOSE_NETCDF')
+        endif
+  
+        print *, "Successfully written NN input and output arrays to ", trim(nc_filename)
+  
+      endif ! (masterproc) then
+    endif ! (NN_Data_Save) then
+  endif ! (modstep6hr==5 .AND. .NOT. corrector_step ) then ! end of NN inference
+    !-----------------------------------------------------------
 
       !       fileexists=.FALSE.
     

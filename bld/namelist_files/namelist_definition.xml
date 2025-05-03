@@ -655,6 +655,15 @@
        Default: none
        </entry>
 
+<entry id="NN_Data_Save" type="logical" category="corrector"
+       group="corrector_nl" valid_values="" >
+       Save the NN input/output data for debugging/analysis purposes.
+         TRUE  = saving the NN input/output data
+         FALSE = not saving the NN input/output data
+       Default: FALSE
+       </entry>
+
+
 <!-- Conv State Swap Parameters -->
 <entry id="ConvStateSwap_Model" type="logical" category="conv_state_swap"
        group="conv_state_swap_nl" valid_values="" >
