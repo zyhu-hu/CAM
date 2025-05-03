@@ -1630,7 +1630,20 @@ end function interpret_filename_replay
     
             corrector_step=.TRUE.
     
+    else ! (modstep6hr==5 .AND. .NOT. corrector_step ) then ! end of NN inference
+      ! Zeyuan Hu 05/03/2025
+      ! still run the NN but do nothing else (just to prevent crash). need to figure out better way to avoid crash
+      ! seems like when subroutine finishes, if input_tensors/output_torch or out_tensor are not allocated, it will crash
+      ! this is a temporary fix, need to figure out better way to avoid crash
+      input_torch(:,:,:,:) = 0.0_r8
+      ! run the NN inference
+      call input_tensors%create
+      call input_tensors%add_array(input_torch)
+      call torch_mod(1)%forward(input_tensors, out_tensor, flags=module_use_inference_mode)
+      call out_tensor%to_array(output_torch)
     end if ! (modstep6hr==5 .AND. .NOT. corrector_step ) then ! end of NN inference
+
+    
     
     end subroutine replay_correction
 
