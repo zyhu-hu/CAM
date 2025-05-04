@@ -1532,70 +1532,70 @@ end function interpret_filename_replay
 
     !-----------------------------------------------------------
 
-            fileexists=.FALSE.
+      !       fileexists=.FALSE.
     
-    do while (.NOT. fileexists )
+    ! do while (.NOT. fileexists )
 
-      if (masterproc) write(iulog,*) "modstep, ncsec + 1800", modstep, ncsec+1800
+    !   if (masterproc) write(iulog,*) "modstep, ncsec + 1800", modstep, ncsec+1800
     
-      filename=interpret_filename_replay(Replay_File_Template      , &
-          yr_spec=yr , &
-          mon_spec=mon, &
-          day_spec=day  , &
-          hr_spec=modstep, &
-          sec_spec=ncsec+1800    )
+    !   filename=interpret_filename_replay(Replay_File_Template      , &
+    !       yr_spec=yr , &
+    !       mon_spec=mon, &
+    !       day_spec=day  , &
+    !       hr_spec=modstep, &
+    !       sec_spec=ncsec+1800    )
 
-      if(masterproc) then
-        write(iulog,*) trim(Replay_Path)//trim(filename)
-      endif
+    !   if(masterproc) then
+    !     write(iulog,*) trim(Replay_Path)//trim(filename)
+    !   endif
       
-      INQUIRE(FILE=trim(Replay_Path)//trim(filename), EXIST=fileexists)
+    !   INQUIRE(FILE=trim(Replay_Path)//trim(filename), EXIST=fileexists)
       
-      if (.not. fileexists) print*, 'file missing', filename
+    !   if (.not. fileexists) print*, 'file missing', filename
       
-      day=day-1
-      if (day==0) then
-      day=31
-      mon=mon-1
-      if (mon==0) then
-      mon=12
-      yr=yr-1
-      end if
-      end if
+    !   day=day-1
+    !   if (day==0) then
+    !   day=31
+    !   mon=mon-1
+    !   if (mon==0) then
+    !   mon=12
+    !   yr=yr-1
+    !   end if
+    !   end if
       
-    end do ! checking if file exists
+    ! end do ! checking if file exists
    
-    !-------------------------------------------------------------------------------------
-    if (masterproc) write(iulog,*) "Reanalysis filename = ", trim(Replay_Path)//trim(filename)   ! print filename used 
-    !-----------------------------finish calling filename--------------------------------------  
+    ! !-------------------------------------------------------------------------------------
+    ! if (masterproc) write(iulog,*) "Reanalysis filename = ", trim(Replay_Path)//trim(filename)   ! print filename used 
+    ! !-----------------------------finish calling filename--------------------------------------  
     
          
-          call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
-          Replay_nlon=hdim1_d
-          Replay_nlat=hdim2_d
+          ! call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
+          ! Replay_nlon=hdim1_d
+          ! Replay_nlat=hdim2_d
           
-          allocate(Ufield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Ufield3d',pcols*pver*((endchunk-begchunk)+1))
-          allocate(Vfield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Vfield3d',pcols*pver*((endchunk-begchunk)+1))
-          allocate(Tfield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Tfield3d',pcols*pver*((endchunk-begchunk)+1))
-          allocate(Qfield3d(pcols,pver,begchunk:endchunk),stat=istat)
-          call alloc_err(istat,'replay_init','Qfield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Ufield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Ufield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Vfield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Vfield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Tfield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Tfield3d',pcols*pver*((endchunk-begchunk)+1))
+          ! allocate(Qfield3d(pcols,pver,begchunk:endchunk),stat=istat)
+          ! call alloc_err(istat,'replay_init','Qfield3d',pcols*pver*((endchunk-begchunk)+1))
  
-          Ufield3d(:pcols,:pver,begchunk:endchunk)=0._r8
-          Vfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
-          Tfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
-          Qfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Ufield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Vfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Tfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
+          ! Qfield3d(:pcols,:pver,begchunk:endchunk)=0._r8
  
-          call read_netcdf_replay(trim(Replay_Path)//trim(filename), Replay_nlon, Replay_nlat)
+          ! call read_netcdf_replay(trim(Replay_Path)//trim(filename), Replay_nlon, Replay_nlat)
     
        !call pio_closefile(File)
        if(masterproc) then 
-       write(iulog,*) "done read in reanalysis"
-       write(iulog,*) "state(c)%sforce(1,1): ", state(begchunk)%sforce(1,1)
-       write(iulog,*) "begchunk: ", begchunk
-       write(iulog,*) "anal_field T(1,1,1): ", Tfield3d(1,1,begchunk)
+      !  write(iulog,*) "done read in reanalysis"
+      !  write(iulog,*) "state(c)%sforce(1,1): ", state(begchunk)%sforce(1,1)
+      !  write(iulog,*) "begchunk: ", begchunk
+      !  write(iulog,*) "anal_field T(1,1,1): ", Tfield3d(1,1,begchunk)
         write(iulog,*) "done nn inference"
        endif
     
@@ -1622,10 +1622,10 @@ end function interpret_filename_replay
             endif
     
             !deallocate(tmpfield)
-            deallocate(Tfield3d)
-            deallocate(Ufield3d)
-            deallocate(Vfield3d)
-            deallocate(Qfield3d)
+            ! deallocate(Tfield3d)
+            ! deallocate(Ufield3d)
+            ! deallocate(Vfield3d)
+            ! deallocate(Qfield3d)
             !deallocate(Zfield3d)
     !writing happens in cam_diagnostics
     
