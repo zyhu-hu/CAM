@@ -1146,7 +1146,7 @@ end function interpret_filename_replay
     ! d) set corrector_step to true 
     ! e) reset clock and restart states (not here)
     
-  if  (modstep6hr==5 .AND. .NOT. corrector_step ) then
+  if  (modstep6hr==6 .AND. .NOT. corrector_step ) then
 
     do lchnk=begchunk,endchunk
       ncols=state(lchnk)%ncol
