@@ -972,10 +972,6 @@ contains
      phys_tend%s(:ncol,:pver)     =Force_Sstep(:ncol,:pver,lchnk)
      phys_tend%q(:ncol,:pver,indw)=Force_Qstep(:ncol,:pver,lchnk)
 
-     if (masterproc) then
-      write(iulog,*) 'phys_tend%u = ', phys_tend%u(1,20)
-     end if
-
      call outfld( 'Force_U',phys_tend%u                ,pcols,lchnk)
      call outfld( 'Force_V',phys_tend%v                ,pcols,lchnk)
      call outfld( 'Force_T',phys_tend%s/cpair          ,pcols,lchnk)
