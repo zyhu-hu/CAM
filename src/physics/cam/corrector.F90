@@ -1190,6 +1190,12 @@ contains
      end do
      end do
      end do
+
+     istat=nf90_close(ncid)
+     if(istat.ne.NF90_NOERR) then
+       write(iulog,*) nf90_strerror(istat)
+       call endrun ('UPDATE_ANALYSES_FV')
+     endif
    endif ! (masterproc) then
    call scatter_field_to_chunk(1,Force_nlev,1,Force_nlon,Xtrans,   &
                                Target_Q(1,1,begchunk))
