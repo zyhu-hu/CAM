@@ -1114,6 +1114,7 @@ contains
        call endrun ('UPDATE_ANALYSES_FV')
      endif
 
+     istat=nf90_get_var(ncid,varid,Xanal)
      if(istat.ne.NF90_NOERR) then
        write(iulog,*) nf90_strerror(istat)
        call endrun ('UPDATE_ANALYSES_FV')
