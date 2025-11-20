@@ -696,7 +696,7 @@ contains
    ! Broadcast other variables that have changed
    !---------------------------------------------
 #ifdef SPMD
-   call mpibcast(Force_Step          ,            1, mpir8 , 0, mpicom)
+   call mpibcast(Force_Step          ,            1, mpiint , 0, mpicom) ! changed to int as declared
    call mpibcast(Force_Next_Year     ,            1, mpiint, 0, mpicom)
    call mpibcast(Force_Next_Month    ,            1, mpiint, 0, mpicom)
    call mpibcast(Force_Next_Day      ,            1, mpiint, 0, mpicom)
@@ -727,10 +727,10 @@ contains
    ! Initialize the analysis filename at the NEXT time for startup.
    !---------------------------------------------------------------
    Force_File=interpret_filename_spec(Force_File_Template      , &
-                                       yr_spec=Force_Beg_Year , &
-                                      mon_spec=Force_Beg_Month, &
-                                      day_spec=Force_Beg_Day  , &
-                                      sec_spec=Force_Beg_Sec    )
+                                       yr_spec=Force_Next_Year , &
+                                      mon_spec=Force_Next_Month, &
+                                      day_spec=Force_Next_Day  , &
+                                      sec_spec=Force_Next_Sec    )
 
    if(masterproc) then
     write(iulog,*) 'corrector: Reading forcing:',trim(Force_Path)//trim(Force_File)
@@ -924,6 +924,7 @@ contains
         write(iulog,*) 'Force_Utau(1,20,1) = ', Force_Utau(1,20,begchunk)
         write(iulog,*) 'Target_U(1,20,1) = ', Target_U(1,20,begchunk)
         write(iulog,*) 'Force_Ustep(1,20,1) = ', Force_Ustep(1,20,begchunk)
+        write(iulog,*) 'state%u(1,20) - ', phys_state(begchunk)%u(1,20)
      end if
 
    endif ! ((Before_End).and.(Update_Force)) then
@@ -1112,7 +1113,7 @@ contains
        write(iulog,*) nf90_strerror(istat)
        call endrun ('UPDATE_ANALYSES_FV')
      endif
-     istat=nf90_get_var(ncid,varid,Xanal)
+
      if(istat.ne.NF90_NOERR) then
        write(iulog,*) nf90_strerror(istat)
        call endrun ('UPDATE_ANALYSES_FV')
